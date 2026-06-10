@@ -6,11 +6,11 @@ To reset a password:
 
 1. Click "Forgot password" on the login page and enter the email address associated with the account.
 2. A reset link is sent to that email address within 2 minutes. If the email does not arrive, ask the customer to check their spam folder and verify the address is spelled correctly.
-3. The reset link is valid for 60 minutes. After 60 minutes the link expires and a new one must be requested — the expired link cannot be extended.
+3. The reset link is valid for 60 minutes. After 60 minutes the link expires and a new one must be requested - the expired link cannot be extended.
 4. After completing the reset, all active sessions on other devices are automatically invalidated. The customer will need to log in again on any devices where they were previously signed in.
 
 **If the customer's email address is unreachable:**
-Support can send the reset link to a verified secondary phone number on file via SMS. The customer must contact support to initiate this — it cannot be triggered by the customer directly. SMS reset links are valid for 15 minutes.
+Support can send the reset link to a verified secondary phone number on file via SMS. The customer must contact support to initiate this - it cannot be triggered by the customer directly. SMS reset links are valid for 15 minutes.
 
 **If both email and phone are unavailable:**
 The customer must submit an identity verification request. Required documentation: government-issued photo ID and one form of account ownership proof (original signup email address, billing information on file, or a verifiable order from the account history). Identity verification takes 3–5 business days from submission of complete documentation. This process cannot be expedited.
@@ -20,7 +20,7 @@ The customer must submit an identity verification request. Required documentatio
 2FA can be enabled from Settings > Security > Two-Factor Authentication.
 
 **TOTP authenticator app (recommended)**
-Compatible with Google Authenticator, Authy, Microsoft Authenticator, and any RFC 6238-compliant TOTP application. During setup, a QR code is displayed — scanning it registers the account in the app. After scanning, the customer enters the 6-digit code shown in the app to confirm the connection before 2FA is activated.
+Compatible with Google Authenticator, Authy, Microsoft Authenticator, and any RFC 6238-compliant TOTP application. During setup, a QR code is displayed - scanning it registers the account in the app. After scanning, the customer enters the 6-digit code shown in the app to confirm the connection before 2FA is activated.
 
 **SMS**
 A 6-digit verification code is sent to the verified phone number on file at each login. SMS 2FA is available as a secondary option. Customers who ask which method to use should be informed that TOTP apps are more secure than SMS because SMS codes are vulnerable to SIM-swap attacks, where an attacker convinces a carrier to transfer the phone number.
@@ -34,7 +34,7 @@ During 2FA setup, 8 single-use backup codes are generated and displayed once. Th
 At the 2FA prompt, the customer clicks "Use a backup code" and enters one of their 8 saved codes. Each code is single-use. After entry, the code is invalidated and the remaining codes continue to function.
 
 **If all backup codes are lost and the 2FA device is unavailable:**
-The customer must complete the identity verification process described in Section 1. There is no way to bypass 2FA recovery without completing identity verification — this requirement exists to prevent account takeover. The process takes 3–5 business days from submission of complete documentation.
+The customer must complete the identity verification process described in Section 1. There is no way to bypass 2FA recovery without completing identity verification - this requirement exists to prevent account takeover. The process takes 3–5 business days from submission of complete documentation.
 
 **If the customer's phone number changed and SMS 2FA is active:**
 A phone number associated with SMS 2FA can only be updated by a customer who is currently authenticated. If the customer is locked out because the old phone number is no longer accessible, they must go through identity verification. Support cannot update the phone number without verification.
@@ -42,7 +42,7 @@ A phone number associated with SMS 2FA can only be updated by a customer who is 
 ## 4. Account Suspension Reasons
 
 **Payment failure**
-The account is suspended automatically when payment has not been received after the full retry cycle completes (Day 8 following the original failed charge — see Billing FAQ, Section 4). The customer receives the following notification:
+The account is suspended automatically when payment has not been received after the full retry cycle completes (Day 8 following the original failed charge - see Billing FAQ, Section 4). The customer receives the following notification:
 
 *"Your account has been suspended due to a payment issue. To restore access, please update your payment method from the login page or contact support. Your data will be retained for 30 days from the date of suspension."*
 
@@ -67,7 +67,7 @@ Support agents handling a compliance hold should not provide details about the n
 
 **Payment-related suspension (self-serve):**
 1. Go to the login page. A suspended account due to payment failure will display a "Restore Access" link below the login form.
-2. Click "Restore Access" and navigate to the payment update screen — this is the only page accessible on a suspended account.
+2. Click "Restore Access" and navigate to the payment update screen - this is the only page accessible on a suspended account.
 3. Enter a valid payment method and submit. An immediate charge attempt is made.
 4. If the charge succeeds, access is restored within 5 minutes and a confirmation email is sent.
 5. If 30 days have passed since the suspension date, the self-serve path is no longer available. The customer must contact support.

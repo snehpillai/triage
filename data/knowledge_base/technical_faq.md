@@ -6,7 +6,7 @@
 
 The session token is invalid or expired. This occurs after 24 hours of inactivity, immediately following a password change, or after a forced logout triggered by a security event on the account.
 
-**Resolution steps:** Ask the customer to log out completely (not just close the tab), clear browser cookies and cached data for the domain, and log in again. If the error appears immediately after a fresh login, the account password should be reset — a password reset invalidates all existing session tokens and forces a clean session.
+**Resolution steps:** Ask the customer to log out completely (not just close the tab), clear browser cookies and cached data for the domain, and log in again. If the error appears immediately after a fresh login, the account password should be reset - a password reset invalidates all existing session tokens and forces a clean session.
 
 ---
 
@@ -22,7 +22,7 @@ The account does not have access to the requested resource or feature. Common ca
 
 The requested item, page, or data record does not exist at the requested location. This can occur when a URL is entered incorrectly, when a shared link points to a deleted item, or when a resource was moved.
 
-**Resolution steps:** Confirm the URL or item ID is correct. If the customer believes the resource should exist, check the account activity log for a deletion event. Deleted resources cannot be restored from the customer-facing interface. If the item was deleted within the last 7 days, escalate to engineering — a database-level restore may be possible within that window.
+**Resolution steps:** Confirm the URL or item ID is correct. If the customer believes the resource should exist, check the account activity log for a deletion event. Deleted resources cannot be restored from the customer-facing interface. If the item was deleted within the last 7 days, escalate to engineering - a database-level restore may be possible within that window.
 
 ---
 
@@ -36,7 +36,7 @@ The account has exceeded the maximum number of allowed API or application reques
 
 ### ERR-503: Service Unavailable
 
-The service is temporarily unavailable. This can occur during a planned maintenance window or an active unplanned incident. This error is not account-specific — it affects all users.
+The service is temporarily unavailable. This can occur during a planned maintenance window or an active unplanned incident. This error is not account-specific - it affects all users.
 
 **Resolution steps:** Check the status page at status.[domain].com before responding. If an active incident is posted, read the incident title and current status update to the customer verbatim. Do not speculate on the root cause, internal details, or estimated resolution time beyond what is stated on the status page. If no incident is posted, collect the customer's timestamp, affected feature, and geographic location and report it through the internal outage reporting channel. Log the interaction to the active incident ticket if one exists.
 
@@ -61,12 +61,12 @@ If all five steps fail, collect the following before escalating: browser name an
 ## Account Access Issues
 
 **Account lockout after failed login attempts**
-Accounts are automatically locked after 5 consecutive failed login attempts within a 10-minute window. The lockout lasts 15 minutes and lifts automatically — no action is required by the customer or support. After 15 minutes, the customer can attempt login again.
+Accounts are automatically locked after 5 consecutive failed login attempts within a 10-minute window. The lockout lasts 15 minutes and lifts automatically - no action is required by the customer or support. After 15 minutes, the customer can attempt login again.
 
 If the customer does not want to wait, or has forgotten their password, direct them to the password reset flow. Completing a password reset unlocks the account immediately.
 
 **Security-triggered account lock**
-If an account is locked due to a security flag rather than failed attempts, it displays a distinct message: *"Your account has been temporarily locked due to unusual activity. This is a precautionary measure. Please verify your identity to restore access."* This type of lock cannot be resolved by waiting — it requires identity verification. See the Account FAQ for the verification process. Do not attempt to unlock a security-flagged account through the standard failed-attempt unlock process.
+If an account is locked due to a security flag rather than failed attempts, it displays a distinct message: *"Your account has been temporarily locked due to unusual activity. This is a precautionary measure. Please verify your identity to restore access."* This type of lock cannot be resolved by waiting - it requires identity verification. See the Account FAQ for the verification process. Do not attempt to unlock a security-flagged account through the standard failed-attempt unlock process.
 
 ## Device Compatibility
 

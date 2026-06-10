@@ -4,7 +4,7 @@ Run from the project root:
     python scripts/ingest_docs.py
 
 Idempotent: re-running deletes and re-inserts chunks for each file.
-Embed first, write to DB second — if Voyage fails, the DB is unchanged.
+Embed first, write to DB second - if Voyage fails, the DB is unchanged.
 """
 
 import re
@@ -29,7 +29,7 @@ CHUNK_SIZE = 500  # target tokens per chunk
 OVERLAP = 50  # token overlap between consecutive chunks
 MIN_CHUNK_TOKENS = 20  # discard title-only or near-empty sections
 
-# voyage-3-large pricing — verify current rate at dash.voyageai.com/pricing
+# voyage-3-large pricing - verify current rate at dash.voyageai.com/pricing
 _COST_PER_MILLION_TOKENS = 0.18
 
 # Free-tier Voyage accounts are limited to 3 RPM. Adding a payment method on
@@ -96,7 +96,7 @@ def ingest_file(
     token_count = sum(len(_enc.encode(c)) for c in chunks)
 
     logger.info(
-        "{file}: {n} chunks, {t} tokens — embedding...",
+        "{file}: {n} chunks, {t} tokens - embedding...",
         file=source_file,
         n=len(chunks),
         t=token_count,

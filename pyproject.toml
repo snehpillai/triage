@@ -83,7 +83,7 @@ select = [
     "UP",  # pyupgrade
 ]
 ignore = [
-    "E501",  # line too long — black handles this
+    "E501",  # line too long - black handles this
 ]
 
 [tool.ruff.lint.isort]

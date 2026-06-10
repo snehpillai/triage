@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     # Anthropic
     anthropic_api_key: str
 
-    # OpenAI — only used as cross-provider fallback when Anthropic is down
+    # OpenAI - only used as cross-provider fallback when Anthropic is down
     openai_api_key: str = ""
 
     # LangSmith
@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     # Embeddings
     voyage_api_key: str = ""
 
-    # Model names — change here to swap models across the entire system
+    # Model names - change here to swap models across the entire system
     router_model: str = "claude-haiku-4-5-20251001"
     specialist_model: str = "claude-sonnet-4-6"
     quality_checker_model: str = "claude-haiku-4-5-20251001"

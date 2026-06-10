@@ -4,7 +4,7 @@
 
 Subscriptions are billed on the same calendar date each month as the original signup date. A customer who signed up on the 15th is billed on the 15th of each subsequent month.
 
-If the signup date falls on the 29th, 30th, or 31st, billing in shorter months defaults to the last day of that month. A customer billed on January 31 will be billed on February 28 (or 29 in a leap year), then March 31, then April 30. The billing date does not permanently shift — it returns to the original date in months where it exists.
+If the signup date falls on the 29th, 30th, or 31st, billing in shorter months defaults to the last day of that month. A customer billed on January 31 will be billed on February 28 (or 29 in a leap year), then March 31, then April 30. The billing date does not permanently shift - it returns to the original date in months where it exists.
 
 Invoices are sent by email within 1 hour of a successful charge. If a customer did not receive an invoice, they should check their spam or promotions folder and confirm the billing email address is correct in account settings. Invoices are also accessible at any time under Settings > Billing > Invoice History.
 
@@ -41,7 +41,7 @@ When a payment attempt fails, the following sequence applies automatically:
 - **Day 8:** Account is suspended. The customer loses access to the service. Account data is retained for 30 days from the suspension date.
 - **Day 38:** If no successful payment has been received within 30 days of the suspension date, the account is permanently closed and data deletion begins per the data retention policy.
 
-At any point in this cycle, the customer can update their payment method from Settings > Billing > Payment Methods. Updating the payment method triggers an immediate retry — the customer does not need to wait for the next scheduled retry date.
+At any point in this cycle, the customer can update their payment method from Settings > Billing > Payment Methods. Updating the payment method triggers an immediate retry - the customer does not need to wait for the next scheduled retry date.
 
 ## 5. Payment Method Update Process
 
@@ -60,7 +60,7 @@ If a customer wants to update their payment method outside of a failure cycle (n
 ## 6. Dispute and Chargeback Process
 
 **Internal dispute**
-If a customer believes they were charged incorrectly — wrong amount, unexpected charge, duplicate charge — they should contact support with the charge date and the amount in question. Support will review the billing history and issue a correction within 5 business days if the charge was in error. Corrected charges are refunded to the original payment method under the standard refund timelines (see Refund Policy, Section 5).
+If a customer believes they were charged incorrectly - wrong amount, unexpected charge, duplicate charge - they should contact support with the charge date and the amount in question. Support will review the billing history and issue a correction within 5 business days if the charge was in error. Corrected charges are refunded to the original payment method under the standard refund timelines (see Refund Policy, Section 5).
 
 Customers should use the internal dispute process before filing a chargeback. Internal disputes are resolved faster and do not affect account standing.
 

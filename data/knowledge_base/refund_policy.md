@@ -9,7 +9,7 @@ Refund requests must be submitted within 30 calendar days of the confirmed deliv
 A full refund is issued when:
 
 - The item arrived visibly damaged or broken at delivery (photo documentation required at time of request)
-- The wrong item was shipped — model, color, or size does not match the order confirmation
+- The wrong item was shipped - model, color, or size does not match the order confirmation
 - The item was not delivered within 10 business days of the estimated delivery date and tracking shows no movement for 5 or more consecutive business days
 - The carrier confirms the item is lost in transit
 
@@ -52,7 +52,7 @@ Store credit refunds are applied to the account immediately upon approval. No ba
 
 ## 6. Digital Goods Exception
 
-Digital goods — including software licenses, downloadable files, subscription activations, in-app purchases, and access codes — are not eligible for refund once the item has been downloaded, activated, or accessed.
+Digital goods - including software licenses, downloadable files, subscription activations, in-app purchases, and access codes - are not eligible for refund once the item has been downloaded, activated, or accessed.
 
 Refunds on digital goods are only considered when the item is technically defective and cannot function for its intended purpose. To qualify:
 
@@ -62,15 +62,15 @@ Refunds on digital goods are only considered when the item is technically defect
 
 ## 7. Sale and Clearance Items
 
-**Sale items** — items discounted during a promotional event but not explicitly marked final sale — are eligible for refund under the standard 30-day policy. The refund amount is the amount the customer paid, not the original pre-discount price.
+**Sale items** - items discounted during a promotional event but not explicitly marked final sale - are eligible for refund under the standard 30-day policy. The refund amount is the amount the customer paid, not the original pre-discount price.
 
-**Final sale items** — items explicitly marked "Final Sale" at the time of purchase — are not eligible for refunds or exchanges unless the item arrives defective or the wrong item was shipped. If either condition is met, full refund applies.
+**Final sale items** - items explicitly marked "Final Sale" at the time of purchase - are not eligible for refunds or exchanges unless the item arrives defective or the wrong item was shipped. If either condition is met, full refund applies.
 
-**Clearance items** — items from discontinued inventory, marked as clearance — are eligible for store credit only, not cash or card refunds, unless the item arrives defective or is the wrong item. Defective clearance items are eligible for a full refund to the original payment method.
+**Clearance items** - items from discontinued inventory, marked as clearance - are eligible for store credit only, not cash or card refunds, unless the item arrives defective or is the wrong item. Defective clearance items are eligible for a full refund to the original payment method.
 
 ## 8. How to Request a Refund
 
-1. Submit a refund request through the account portal or by contacting support directly. Include the order number, the specific item being returned, and the reason for the refund. Photo documentation should be attached at this step for damage claims — submitting it later extends processing time.
+1. Submit a refund request through the account portal or by contacting support directly. Include the order number, the specific item being returned, and the reason for the refund. Photo documentation should be attached at this step for damage claims - submitting it later extends processing time.
 2. A Return Merchandise Authorization (RMA) number will be issued within 1 business day of request submission. Packages returned without a valid RMA number will not be processed and will be returned to the sender at the sender's expense.
 3. Ship the item back using the prepaid return label provided with the RMA (for eligible damage and error claims) or at the customer's expense (for change-of-mind returns where free return eligibility does not apply). The item must be shipped within 10 business days of RMA issuance. RMAs expire after 10 business days.
 4. Once the returned item is received and inspected, a confirmation email is sent and the refund is initiated. Physical inspection is completed within 2 business days of receipt at the warehouse.

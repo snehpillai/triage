@@ -21,10 +21,10 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    # 1. pgvector extension — must exist before any Vector column is created
+    # 1. pgvector extension - must exist before any Vector column is created
     op.execute("CREATE EXTENSION IF NOT EXISTS vector")
 
-    # 2. Postgres ENUM type via raw SQL — must exist before the tickets table.
+    # 2. Postgres ENUM type via raw SQL - must exist before the tickets table.
     # Using op.execute() rather than postgresql.ENUM.create() so SQLAlchemy's
     # event system cannot attempt a second CREATE TYPE when op.create_table() fires.
     op.execute(
@@ -32,7 +32,7 @@ def upgrade() -> None:
         "('pending', 'processing', 'resolved', 'escalated', 'failed')"
     )
 
-    # 3. tickets — no foreign key dependencies, create first
+    # 3. tickets - no foreign key dependencies, create first
     op.create_table(
         "tickets",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -63,7 +63,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
 
-    # 4. document_chunks — no foreign key dependencies
+    # 4. document_chunks - no foreign key dependencies
     op.create_table(
         "document_chunks",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -80,7 +80,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
 
-    # 5. escalation_records — depends on tickets via FK
+    # 5. escalation_records - depends on tickets via FK
     op.create_table(
         "escalation_records",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -98,7 +98,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
 
-    # 6. IVFFlat index on document_chunks.embedding — must be after the table and
+    # 6. IVFFlat index on document_chunks.embedding - must be after the table and
     # after the column is cast to vector type. Uses cosine distance (<=>) for
     # semantic similarity search. lists=100 balances recall vs query speed at our scale.
     op.execute(
@@ -118,5 +118,5 @@ def downgrade() -> None:
     ticket_status_enum = postgresql.ENUM(name="ticket_status")
     ticket_status_enum.drop(op.get_bind(), checkfirst=True)
 
-    # Intentionally not dropping the vector extension —
+    # Intentionally not dropping the vector extension -
     # it may be used by other schemas and dropping extensions has wide impact

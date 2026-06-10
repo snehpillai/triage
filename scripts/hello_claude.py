@@ -31,7 +31,7 @@ def main() -> None:
     response_text = message.content[0].text
     logger.success("Response: {text}", text=response_text)
     logger.info(
-        "Usage — input tokens: {i}, output tokens: {o}",
+        "Usage - input tokens: {i}, output tokens: {o}",
         i=message.usage.input_tokens,
         o=message.usage.output_tokens,
     )

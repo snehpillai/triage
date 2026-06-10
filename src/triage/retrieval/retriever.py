@@ -7,7 +7,7 @@ from triage.config import settings
 from triage.db.models import DocumentChunk
 from triage.retrieval.embedder import VoyageEmbedder
 
-# One engine per process — holds the connection pool.
+# One engine per process - holds the connection pool.
 _engine = create_engine(settings.database_url)
 _embedder = VoyageEmbedder()
 
@@ -24,7 +24,7 @@ _CATEGORY_TO_FILE: dict[str, str] = {
 class ChunkWithScore(BaseModel):
     # arbitrary_types_allowed lets Pydantic hold a SQLAlchemy model instance
     # without trying to serialise it. ChunkWithScore is an internal result
-    # type — it is never converted to JSON directly.
+    # type - it is never converted to JSON directly.
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     chunk: DocumentChunk
@@ -47,7 +47,7 @@ def retrieve(
 
     Returns:
         ChunkWithScore list ordered best-first. A score below ~0.5 means the
-        query has weak overlap with the knowledge base — the QC agent uses this
+        query has weak overlap with the knowledge base - the QC agent uses this
         to flag responses where the specialist may be extrapolating.
     """
     query_vec: list[float] = _embedder.embed_query(query)
@@ -63,7 +63,7 @@ def retrieve(
         source_file = _CATEGORY_TO_FILE.get(category)
         if source_file is None:
             logger.warning(
-                "Unknown category '{cat}' passed to retrieve() — searching all files",
+                "Unknown category '{cat}' passed to retrieve() - searching all files",
                 cat=category,
             )
         else:

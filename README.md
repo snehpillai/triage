@@ -79,24 +79,32 @@ demo/
 
 ## Running locally
 
-**Requirements:** Python 3.13, Postgres with pgvector, Redis.
+**Requirements:** Python 3.13, Docker Desktop.
 
 ```bash
-# Install
+# 1. Start infrastructure (Postgres on 5433, Redis on 6379)
+docker compose -f docker/docker-compose.yml up -d
+
+# 2. Install
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pre-commit install
 
-# Configure
+# 3. Configure
 cp .env.example .env
-# Fill in ANTHROPIC_API_KEY and other values
+# Fill in ANTHROPIC_API_KEY, VOYAGE_API_KEY, LANGCHAIN_API_KEY
 
-# Smoke test
+# 4. Apply database migrations
+alembic upgrade head
+
+# 5. Ingest knowledge base into pgvector
+python scripts/ingest_docs.py
+
+# 6. Smoke test
 python scripts/hello_claude.py
-
-# Run API
-uvicorn triage.api.main:app --reload
 ```
+
+> **Voyage AI free tier:** the ingestion script sleeps 21 seconds between files to respect the 3 RPM limit. Add a payment method at dash.voyageai.com/billing to unlock higher limits (200M free tokens still apply).
 
 ---
 

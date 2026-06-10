@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parents[3]))
 from triage.config import settings  # noqa: E402
 from triage.db.models import Base  # noqa: E402
 
-# Alembic Config object — gives access to alembic.ini values
+# Alembic Config object - gives access to alembic.ini values
 alembic_config = context.config
 
 # Wire in our database URL so it never lives in alembic.ini
@@ -21,7 +21,7 @@ alembic_config.set_main_option("sqlalchemy.url", settings.database_url)
 if alembic_config.config_file_name is not None:
     fileConfig(alembic_config.config_file_name)
 
-# Our models' metadata — alembic reads this for autogenerate support
+# Our models' metadata - alembic reads this for autogenerate support
 target_metadata = Base.metadata
 
 

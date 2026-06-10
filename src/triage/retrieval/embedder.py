@@ -29,7 +29,7 @@ class VoyageEmbedder:
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         """Embed a list of document texts in batches of up to 128.
 
-        Uses input_type='document' — Voyage scores document embeddings
+        Uses input_type='document' - Voyage scores document embeddings
         differently from query embeddings to improve retrieval precision.
         """
         if not texts:
@@ -61,7 +61,7 @@ class VoyageEmbedder:
     def embed_query(self, text: str) -> list[float]:
         """Embed a single query string.
 
-        Uses input_type='query' — Voyage optimises query vectors differently
+        Uses input_type='query' - Voyage optimises query vectors differently
         from document vectors. Using 'document' here would degrade recall by
         roughly 5-15% on retrieval benchmarks.
         """
