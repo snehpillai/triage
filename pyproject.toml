@@ -37,6 +37,9 @@ dependencies = [
     "voyageai>=0.3",
     # "openai>=1.0",  # alternative embeddings provider
 
+    # Token counting (used for chunk sizing in ingestion)
+    "tiktoken>=0.7",
+
     # Observability
     "prometheus-client>=0.21",
 
