@@ -1,15 +1,15 @@
 """LangGraph graph builder for the triage pipeline.
 
-Wires together: Router -> Specialist (4 branches) -> [QC placeholder] -> END.
+Wires together: Router -> Specialist (4 branches) -> QC -> END.
 
-The QC node and Escalator are stubbed as pass-through nodes so the graph
-compiles and runs end-to-end today. Day 3 replaces the stubs with real logic.
+The Escalator node is still a stub - replaced in a later Day 3 step.
 """
 
 from typing import Any
 
 from langgraph.graph import END, StateGraph
 
+from triage.agents.quality_checker import QualityChecker
 from triage.agents.router import route
 from triage.agents.specialists.account import AccountSpecialist
 from triage.agents.specialists.billing import BillingSpecialist
@@ -17,26 +17,20 @@ from triage.agents.specialists.refund import RefundSpecialist
 from triage.agents.specialists.technical import TechnicalSpecialist
 from triage.graph.state import TicketState
 
-# Module-level specialist instances (stateless, safe to share)
+# Module-level instances - all are stateless, safe to share across invocations.
 _refund = RefundSpecialist()
 _technical = TechnicalSpecialist()
 _billing = BillingSpecialist()
 _account = AccountSpecialist()
-
-
-# ---------------------------------------------------------------------------
-# Stub nodes - replaced in Day 3
-# ---------------------------------------------------------------------------
+_qc = QualityChecker()
 
 
 def _qc_node(state: TicketState) -> dict[str, Any]:
-    """Placeholder QC node: passes all drafts through unconditionally."""
-    return {
-        "qc_score": 10.0,
-        "qc_feedback": "",
-        "qc_passed": True,
-        "final_response": state.get("draft_response", ""),
-    }
+    """Run Stage 1 hard rules; promote draft to final_response on pass."""
+    result = _qc.run(state)
+    if result["qc_passed"]:
+        result["final_response"] = state.get("draft_response", "")
+    return result
 
 
 def _escalator_node(state: TicketState) -> dict[str, Any]:
