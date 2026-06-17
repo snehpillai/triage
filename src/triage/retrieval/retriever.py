@@ -11,13 +11,14 @@ from triage.retrieval.types import ChunkWithScore
 _engine = create_engine(settings.database_url)
 _embedder = VoyageEmbedder()
 
-# Maps the intent category name used by agents to the source file stored in the DB.
-# source_file is written by scripts/ingest_docs.py as the bare filename (no path).
-_CATEGORY_TO_FILE: dict[str, str] = {
-    "refund": "refund_policy.md",
-    "technical": "technical_faq.md",
-    "billing": "billing_faq.md",
-    "account": "account_faq.md",
+# Maps the intent category name to a keyword matched against source_file.
+# Using ilike (partial match) rather than == so the filter survives minor filename
+# drift (e.g. refund_policy.md -> refund_faq.md) without a code change.
+_CATEGORY_TO_KEYWORD: dict[str, str] = {
+    "refund": "refund",
+    "technical": "technical",
+    "billing": "billing",
+    "account": "account",
 }
 
 
@@ -50,14 +51,14 @@ def retrieve(
     stmt = select(DocumentChunk, (1 - dist).label("score")).order_by(dist).limit(top_k)
 
     if category is not None:
-        source_file = _CATEGORY_TO_FILE.get(category)
-        if source_file is None:
+        keyword = _CATEGORY_TO_KEYWORD.get(category)
+        if keyword is None:
             logger.warning(
                 "Unknown category '{cat}' passed to retrieve() - searching all files",
                 cat=category,
             )
         else:
-            stmt = stmt.where(DocumentChunk.source_file == source_file)
+            stmt = stmt.where(DocumentChunk.source_file.ilike(f"%{keyword}%"))
 
     with Session(_engine) as session:
         rows = session.execute(stmt).all()

@@ -54,8 +54,9 @@ tests/
 ├── integration/            # Hits real DB/Redis
 └── eval/                   # 500-case evaluation harness
 scripts/
-├── hello_claude.py         # API smoke test
-└── ingest_docs.py          # Chunk and embed knowledge base
+├── hello_claude.py          # API smoke test
+├── ingest_docs.py           # Chunk and embed knowledge base
+└── test_day2_pipeline.py    # End-to-end refund pipeline smoke test
 demo/
 └── app.py                  # Streamlit demo UI
 ```
@@ -102,6 +103,9 @@ python scripts/ingest_docs.py
 
 # 6. Smoke test
 python scripts/hello_claude.py
+
+# 7. End-to-end pipeline test (runs three refund tickets through the full graph)
+python scripts/test_day2_pipeline.py
 ```
 
 > **Voyage AI free tier:** the ingestion script sleeps 21 seconds between files to respect the 3 RPM limit. Add a payment method at dash.voyageai.com/billing to unlock higher limits (200M free tokens still apply).

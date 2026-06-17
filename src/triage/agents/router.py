@@ -31,7 +31,7 @@ class RouterOutput(BaseModel):
     reasoning: str
 
 
-# Built once at module load — same schema for every call.
+# Built once at module load - same schema for every call.
 _CLASSIFY_TOOL: dict[str, Any] = {
     "name": "classify_ticket",
     "description": "Classify a customer support ticket into the correct intent category.",
@@ -43,7 +43,7 @@ def route(state: TicketState) -> dict[str, Any]:
     """LangGraph node: classify the ticket and populate intent + confidence.
 
     Also initialises the control-flow fields (retry_count, escalate,
-    escalation_reason) that downstream nodes read — doing it here rather than
+    escalation_reason) that downstream nodes read - doing it here rather than
     in each node keeps the defaults in one place.
     """
     content = state["content"]
@@ -56,7 +56,7 @@ def route(state: TicketState) -> dict[str, Any]:
         max_tokens=256,
         system=_SYSTEM_PROMPT,
         tools=[_CLASSIFY_TOOL],
-        # Force exactly this tool — no free-text fallback, no tool selection ambiguity.
+        # Force exactly this tool - no free-text fallback, no tool selection ambiguity.
         tool_choice={"type": "tool", "name": "classify_ticket"},
         messages=[{"role": "user", "content": content}],
     )

@@ -60,7 +60,7 @@ class BaseSpecialist(ABC):
                 raise TypeError(f"{cls.__name__} must define class attribute '{attr}'")
 
     # ------------------------------------------------------------------
-    # Public entry point — called as a LangGraph node
+    # Public entry point - called as a LangGraph node
     # ------------------------------------------------------------------
 
     def run(self, state: TicketState) -> dict[str, Any]:
