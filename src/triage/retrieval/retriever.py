@@ -1,11 +1,11 @@
 from loguru import logger
-from pydantic import BaseModel, ConfigDict
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from triage.config import settings
 from triage.db.models import DocumentChunk
 from triage.retrieval.embedder import VoyageEmbedder
+from triage.retrieval.types import ChunkWithScore
 
 # One engine per process - holds the connection pool.
 _engine = create_engine(settings.database_url)
@@ -19,16 +19,6 @@ _CATEGORY_TO_FILE: dict[str, str] = {
     "billing": "billing_faq.md",
     "account": "account_faq.md",
 }
-
-
-class ChunkWithScore(BaseModel):
-    # arbitrary_types_allowed lets Pydantic hold a SQLAlchemy model instance
-    # without trying to serialise it. ChunkWithScore is an internal result
-    # type - it is never converted to JSON directly.
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    chunk: DocumentChunk
-    score: float  # cosine similarity: 1.0 = identical, 0.0 = orthogonal
 
 
 def retrieve(
