@@ -11,6 +11,7 @@ from abc import ABC
 from typing import Any, ClassVar
 
 import anthropic
+import openai
 from langchain_core.messages import AIMessage
 from langchain_core.tools import BaseTool
 from loguru import logger
@@ -22,9 +23,24 @@ from triage.retrieval.types import ChunkWithScore
 
 _client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
+# OpenAI client used only when Anthropic returns 5xx/timeout/rate-limit.
+# api_key falls back to a placeholder so the module loads even when OPENAI_API_KEY
+# is not set; a real call without a valid key will raise AuthenticationError.
+_oai_client = openai.OpenAI(api_key=settings.openai_api_key or "sk-not-configured")
+
+_OPENAI_FALLBACK_MODEL = "gpt-4o-mini"
+
 # Cap agentic loop iterations. Hitting the cap is a symptom of a broken tool
 # or a prompt that keeps asking for more data, so we escalate rather than loop.
 _MAX_ITERATIONS = 5
+
+# Anthropic server-side errors that justify falling back to OpenAI.
+_FALLBACK_STATUS_CODES: frozenset[int] = frozenset({500, 502, 503, 504})
+
+
+# ---------------------------------------------------------------------------
+# Format converters
+# ---------------------------------------------------------------------------
 
 
 def _to_anthropic_tool(t: BaseTool) -> dict[str, Any]:
@@ -36,6 +52,107 @@ def _to_anthropic_tool(t: BaseTool) -> dict[str, Any]:
     }
 
 
+def _to_oai_tools(anthropic_tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Convert Anthropic tool definitions to OpenAI function-calling format."""
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": t["name"],
+                "description": t.get("description", ""),
+                "parameters": t["input_schema"],
+            },
+        }
+        for t in anthropic_tools
+    ]
+
+
+def _to_oai_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Convert accumulated Anthropic api_messages to OpenAI chat format.
+
+    Handles three message shapes produced by the agentic loop:
+      - user + string content (initial ticket or retry prefix)
+      - assistant + list of Anthropic SDK block objects (TextBlock, ToolUseBlock)
+      - user + list of tool_result dicts (tool execution results)
+    """
+    result: list[dict[str, Any]] = []
+
+    for msg in messages:
+        role = msg["role"]
+        content = msg["content"]
+
+        if role == "user":
+            if isinstance(content, str):
+                result.append({"role": "user", "content": content})
+            elif isinstance(content, list):
+                # Distinguish tool_result blocks from text blocks.
+                first = content[0] if content else None
+                is_tool_result = isinstance(first, dict) and first.get("type") == "tool_result"
+
+                if is_tool_result:
+                    # Each tool_result becomes its own "tool" role message.
+                    for tr in content:
+                        result.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tr["tool_use_id"],
+                                "content": tr["content"],
+                            }
+                        )
+                else:
+                    # Text blocks - join into a single user message.
+                    parts = []
+                    for b in content:
+                        if hasattr(b, "type") and b.type == "text":
+                            parts.append(b.text)
+                        elif isinstance(b, dict) and b.get("type") == "text":
+                            parts.append(b.get("text", ""))
+                    result.append({"role": "user", "content": " ".join(parts)})
+
+        elif role == "assistant":
+            # content is a list of Anthropic SDK block objects appended via
+            # api_messages.append({"role": "assistant", "content": response.content}).
+            text_parts: list[str] = []
+            tool_calls: list[dict[str, Any]] = []
+
+            for block in content:
+                btype = getattr(block, "type", None) or (
+                    block.get("type") if isinstance(block, dict) else None
+                )
+                if btype == "text":
+                    text = getattr(block, "text", None) or (
+                        block.get("text", "") if isinstance(block, dict) else ""
+                    )
+                    if text:
+                        text_parts.append(text)
+                elif btype == "tool_use":
+                    bid = getattr(block, "id", None) or block.get("id")
+                    bname = getattr(block, "name", None) or block.get("name")
+                    binput = getattr(block, "input", None)
+                    if binput is None and isinstance(block, dict):
+                        binput = block.get("input", {})
+                    tool_calls.append(
+                        {
+                            "id": bid,
+                            "type": "function",
+                            "function": {
+                                "name": bname,
+                                "arguments": json.dumps(binput or {}),
+                            },
+                        }
+                    )
+
+            oai_msg: dict[str, Any] = {
+                "role": "assistant",
+                "content": " ".join(text_parts) or None,
+            }
+            if tool_calls:
+                oai_msg["tool_calls"] = tool_calls
+            result.append(oai_msg)
+
+    return result
+
+
 def _serialize_result(result: Any) -> str:
     """Serialize a tool return value to a JSON string for the tool_result block."""
     if hasattr(result, "model_dump_json"):
@@ -43,6 +160,11 @@ def _serialize_result(result: Any) -> str:
     if isinstance(result, str):
         return result
     return json.dumps(result)
+
+
+# ---------------------------------------------------------------------------
+# Base class
+# ---------------------------------------------------------------------------
 
 
 class BaseSpecialist(ABC):
@@ -70,7 +192,6 @@ class BaseSpecialist(ABC):
         retry_count = state.get("retry_count", 0)
         qc_feedback = state.get("qc_feedback", "")
 
-        # On retry the QC node has already incremented retry_count to >= 1.
         is_retry = retry_count > 0
         if is_retry:
             logger.info(
@@ -89,14 +210,14 @@ class BaseSpecialist(ABC):
             s=context_docs[0].score if context_docs else 0.0,
         )
 
-        # 2. Build the full system prompt: base instructions + formatted policy chunks.
+        # 2. Build the full system prompt.
         full_system = self._build_system(context_docs)
 
-        # 3. Convert tools to the dict format required by the Anthropic API.
+        # 3. Convert tools to Anthropic and OpenAI formats (both prepared up front).
         anthropic_tools = [_to_anthropic_tool(t) for t in self.tools]
+        oai_tools = _to_oai_tools(anthropic_tools)
 
         # 4. Agentic loop.
-        # On retry, prepend the QC feedback so the model knows what to fix.
         if is_retry and qc_feedback:
             retry_prefix = (
                 f"Previous attempt was rejected by quality review for the following "
@@ -105,94 +226,223 @@ class BaseSpecialist(ABC):
             user_content = retry_prefix + content
         else:
             user_content = content
+
         api_messages: list[dict[str, Any]] = [{"role": "user", "content": user_content}]
         tool_results: dict[str, Any] = {}
         draft_response = ""
         escalated = False
+        provider = "anthropic"
+        use_openai = False
+        oai_messages: list[dict[str, Any]] = []
 
         for iteration in range(1, _MAX_ITERATIONS + 1):
-            response = _client.messages.create(
-                model=self.model,
-                max_tokens=1024,
-                system=full_system,
-                tools=anthropic_tools if anthropic_tools else anthropic.NOT_GIVEN,
-                messages=api_messages,
-            )
+            # ----------------------------------------------------------
+            # Anthropic path (skipped once we have fallen back)
+            # ----------------------------------------------------------
+            if not use_openai:
+                try:
+                    response = _client.messages.create(
+                        model=self.model,
+                        max_tokens=1024,
+                        system=full_system,
+                        tools=anthropic_tools if anthropic_tools else anthropic.NOT_GIVEN,
+                        messages=api_messages,
+                    )
+                except anthropic.RateLimitError:
+                    # SDK already retried (default max_retries=2) - fall back.
+                    logger.warning(
+                        "Specialist({cat}): Anthropic RateLimitError on iter={i}, "
+                        "switching to OpenAI fallback. ticket={id}",
+                        cat=self.category,
+                        i=iteration,
+                        id=ticket_id,
+                    )
+                    use_openai = True
+                    provider = "openai_fallback"
+                    oai_messages = _to_oai_messages(api_messages)
+                except anthropic.APIStatusError as exc:
+                    if exc.status_code in _FALLBACK_STATUS_CODES:
+                        logger.warning(
+                            "Specialist({cat}): Anthropic {code} on iter={i}, "
+                            "switching to OpenAI fallback. ticket={id}",
+                            cat=self.category,
+                            code=exc.status_code,
+                            i=iteration,
+                            id=ticket_id,
+                        )
+                        use_openai = True
+                        provider = "openai_fallback"
+                        oai_messages = _to_oai_messages(api_messages)
+                    else:
+                        raise
+                except anthropic.APITimeoutError:
+                    logger.warning(
+                        "Specialist({cat}): Anthropic APITimeoutError on iter={i}, "
+                        "switching to OpenAI fallback. ticket={id}",
+                        cat=self.category,
+                        i=iteration,
+                        id=ticket_id,
+                    )
+                    use_openai = True
+                    provider = "openai_fallback"
+                    oai_messages = _to_oai_messages(api_messages)
+                else:
+                    # Anthropic succeeded - handle its response and continue the loop.
+                    logger.debug(
+                        "Specialist({cat}) iter={i}/{max} stop={r} out_tokens={t}",
+                        cat=self.category,
+                        i=iteration,
+                        max=_MAX_ITERATIONS,
+                        r=response.stop_reason,
+                        t=response.usage.output_tokens,
+                    )
 
-            logger.debug(
-                "Specialist({cat}) iter={i}/{max} stop={r} out_tokens={t}",
-                cat=self.category,
-                i=iteration,
-                max=_MAX_ITERATIONS,
-                r=response.stop_reason,
-                t=response.usage.output_tokens,
-            )
+                    if response.stop_reason == "end_turn":
+                        draft_response = next(
+                            (b.text for b in response.content if b.type == "text"), ""
+                        )
+                        break
 
-            if response.stop_reason == "end_turn":
-                # Extract the first text block as the draft response.
-                draft_response = next((b.text for b in response.content if b.type == "text"), "")
-                break
+                    if response.stop_reason != "tool_use":
+                        logger.warning(
+                            "Specialist({cat}): unexpected stop_reason={r}, escalating",
+                            cat=self.category,
+                            r=response.stop_reason,
+                        )
+                        escalated = True
+                        break
 
-            if response.stop_reason != "tool_use":
-                logger.warning(
-                    "Specialist({cat}): unexpected stop_reason={r}, escalating",
+                    # stop_reason == "tool_use": execute tools and loop.
+                    api_messages.append({"role": "assistant", "content": response.content})
+                    tool_result_blocks: list[dict[str, Any]] = []
+
+                    for block in response.content:
+                        if block.type != "tool_use":
+                            continue
+                        tool = next((t for t in self.tools if t.name == block.name), None)
+                        if tool is None:
+                            logger.warning(
+                                "Specialist({cat}): model called unknown tool '{name}'",
+                                cat=self.category,
+                                name=block.name,
+                            )
+                            result_str = json.dumps({"error": f"Tool '{block.name}' not available"})
+                        else:
+                            try:
+                                result_obj = tool.invoke(block.input)
+                                result_str = _serialize_result(result_obj)
+                                tool_results[block.name] = result_obj
+                                logger.debug(
+                                    "Specialist({cat}): tool={name} result_len={l}",
+                                    cat=self.category,
+                                    name=block.name,
+                                    l=len(result_str),
+                                )
+                            except Exception as tool_exc:
+                                logger.error(
+                                    "Specialist({cat}): tool={name} raised {e}",
+                                    cat=self.category,
+                                    name=block.name,
+                                    e=str(tool_exc),
+                                )
+                                result_str = json.dumps({"error": str(tool_exc)})
+
+                        tool_result_blocks.append(
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": result_str,
+                            }
+                        )
+
+                    api_messages.append({"role": "user", "content": tool_result_blocks})
+                    continue  # next iteration, still using Anthropic
+
+            # ----------------------------------------------------------
+            # OpenAI fallback path
+            # Reached when: fallback fired this iteration (after except),
+            # or use_openai was already True at the top of this iteration.
+            # ----------------------------------------------------------
+            if use_openai:
+                oai_kwargs: dict[str, Any] = {
+                    "model": _OPENAI_FALLBACK_MODEL,
+                    "messages": oai_messages,
+                }
+                if oai_tools:
+                    oai_kwargs["tools"] = oai_tools
+
+                oai_response = _oai_client.chat.completions.create(**oai_kwargs)
+                choice = oai_response.choices[0]
+
+                logger.debug(
+                    "Specialist({cat}) OAI iter={i}/{max} finish={r}",
                     cat=self.category,
-                    r=response.stop_reason,
+                    i=iteration,
+                    max=_MAX_ITERATIONS,
+                    r=choice.finish_reason,
+                )
+
+                if choice.finish_reason == "stop":
+                    draft_response = choice.message.content or ""
+                    break
+
+                if choice.finish_reason == "tool_calls":
+                    # Append assistant turn with tool_calls to oai_messages.
+                    oai_messages.append(
+                        {
+                            "role": "assistant",
+                            "content": choice.message.content,
+                            "tool_calls": [
+                                {
+                                    "id": tc.id,
+                                    "type": "function",
+                                    "function": {
+                                        "name": tc.function.name,
+                                        "arguments": tc.function.arguments,
+                                    },
+                                }
+                                for tc in choice.message.tool_calls
+                            ],
+                        }
+                    )
+                    for tc in choice.message.tool_calls:
+                        tool = next((t for t in self.tools if t.name == tc.function.name), None)
+                        if tool is None:
+                            result_str = json.dumps(
+                                {"error": f"Tool '{tc.function.name}' not available"}
+                            )
+                        else:
+                            try:
+                                result_obj = tool.invoke(json.loads(tc.function.arguments))
+                                result_str = _serialize_result(result_obj)
+                                tool_results[tc.function.name] = result_obj
+                            except Exception as tool_exc:
+                                logger.error(
+                                    "Specialist({cat}): OAI tool={name} raised {e}",
+                                    cat=self.category,
+                                    name=tc.function.name,
+                                    e=str(tool_exc),
+                                )
+                                result_str = json.dumps({"error": str(tool_exc)})
+                        oai_messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tc.id,
+                                "content": result_str,
+                            }
+                        )
+                    continue  # next iteration, still using OpenAI
+
+                logger.warning(
+                    "Specialist({cat}): OAI unexpected finish_reason={r}, escalating",
+                    cat=self.category,
+                    r=choice.finish_reason,
                 )
                 escalated = True
                 break
 
-            # stop_reason == "tool_use": execute each tool and loop back.
-            # Append the assistant's full turn (may include a text preamble + tool blocks).
-            api_messages.append({"role": "assistant", "content": response.content})
-
-            tool_result_blocks: list[dict[str, Any]] = []
-            for block in response.content:
-                if block.type != "tool_use":
-                    continue
-
-                tool = next((t for t in self.tools if t.name == block.name), None)
-
-                if tool is None:
-                    logger.warning(
-                        "Specialist({cat}): model called unknown tool '{name}'",
-                        cat=self.category,
-                        name=block.name,
-                    )
-                    result_str = json.dumps({"error": f"Tool '{block.name}' not available"})
-                else:
-                    try:
-                        result_obj = tool.invoke(block.input)
-                        result_str = _serialize_result(result_obj)
-                        # Keep the structured object in state; the API only needs the string.
-                        tool_results[block.name] = result_obj
-                        logger.debug(
-                            "Specialist({cat}): tool={name} result_len={l}",
-                            cat=self.category,
-                            name=block.name,
-                            l=len(result_str),
-                        )
-                    except Exception as exc:
-                        logger.error(
-                            "Specialist({cat}): tool={name} raised {e}",
-                            cat=self.category,
-                            name=block.name,
-                            e=str(exc),
-                        )
-                        result_str = json.dumps({"error": str(exc)})
-
-                tool_result_blocks.append(
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result_str,
-                    }
-                )
-
-            api_messages.append({"role": "user", "content": tool_result_blocks})
-
         else:
-            # for-loop exhausted all iterations without a break (no end_turn reached).
+            # for-loop exhausted all iterations without a break.
             logger.warning(
                 "Specialist({cat}): hit {n}-iteration cap for ticket={id}, escalating",
                 cat=self.category,
@@ -205,6 +455,7 @@ class BaseSpecialist(ABC):
             return {
                 "context_docs": context_docs,
                 "tool_results": tool_results,
+                "provider": provider,
                 "escalate": True,
                 "escalation_reason": (
                     f"Specialist({self.category}) could not produce a response "
@@ -214,17 +465,19 @@ class BaseSpecialist(ABC):
             }
 
         logger.info(
-            "Specialist({cat}): ticket={id} draft_len={l} tool_calls={tc}",
+            "Specialist({cat}): ticket={id} draft_len={l} tool_calls={tc} provider={p}",
             cat=self.category,
             id=ticket_id,
             l=len(draft_response),
             tc=len(tool_results),
+            p=provider,
         )
 
         return {
             "context_docs": context_docs,
             "tool_results": tool_results,
             "draft_response": draft_response,
+            "provider": provider,
             "messages": [AIMessage(content=draft_response)],
         }
 
@@ -235,7 +488,6 @@ class BaseSpecialist(ABC):
     def _build_system(self, context_docs: list[ChunkWithScore]) -> str:
         """Combine the subclass system prompt with formatted retrieval context."""
         if not context_docs:
-            # Retrieval returned nothing - tell the model not to fabricate policy.
             return (
                 self.system_prompt
                 + "\n\nIMPORTANT: No policy documents were retrieved for this query. "

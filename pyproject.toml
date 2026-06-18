@@ -35,7 +35,7 @@ dependencies = [
 
     # Embeddings (choose one; both listed for flexibility)
     "voyageai>=0.3",
-    # "openai>=1.0",  # alternative embeddings provider
+    "openai>=1.0",  # cross-provider fallback when Anthropic is unavailable
 
     # Token counting (used for chunk sizing in ingestion)
     "tiktoken>=0.7",

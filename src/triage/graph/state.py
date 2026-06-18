@@ -45,6 +45,9 @@ class TicketState(_TicketStateRequired, total=False):
     # Set after QC passes (Day 3)
     final_response: str
 
+    # Which LLM provider produced the draft: "anthropic" | "openai_fallback"
+    provider: str
+
     # LangGraph message history.
     # add_messages reducer appends new messages rather than overwriting the list,
     # which is the correct behaviour for a multi-turn agent conversation.
