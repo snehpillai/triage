@@ -26,10 +26,17 @@ _qc = QualityChecker()
 
 
 def _qc_node(state: TicketState) -> dict[str, Any]:
-    """Run Stage 1 hard rules; promote draft to final_response on pass."""
+    """Run Stage 1+2 checks; promote draft on pass, increment retry_count on fail.
+
+    Incrementing here (before the routing function reads state) means the
+    routing function sees retry_count=1 after the first failure and can use
+    that to decide retry vs. escalate without needing a separate increment node.
+    """
     result = _qc.run(state)
     if result["qc_passed"]:
         result["final_response"] = state.get("draft_response", "")
+    else:
+        result["retry_count"] = state.get("retry_count", 0) + 1
     return result
 
 
@@ -63,10 +70,17 @@ def _route_after_specialist(state: TicketState) -> str:
 
 
 def _route_after_qc(state: TicketState) -> str:
-    """After QC, go to END if passed, or escalate if not (Day 3: retry logic)."""
-    if not state.get("qc_passed", True):
-        return "escalate"
-    return "end"
+    """After QC: pass -> END, first fail -> retry same specialist, second fail -> escalator.
+
+    retry_count was already incremented by _qc_node on failure, so:
+      retry_count == 1  (first failure)  -> route back to specialist
+      retry_count >= 2  (second failure) -> escalate
+    """
+    if state.get("qc_passed", True):
+        return "end"
+    if state.get("retry_count", 0) <= 1:
+        return _route_to_specialist(state)
+    return "escalate"
 
 
 # ---------------------------------------------------------------------------
@@ -111,11 +125,18 @@ def build_graph() -> StateGraph:
             {"qc": "qc", "escalate": "escalator"},
         )
 
-    # QC -> end or escalator
+    # QC -> END, retry specialist, or escalator
     graph.add_conditional_edges(
         "qc",
         _route_after_qc,
-        {"end": END, "escalate": "escalator"},
+        {
+            "end": END,
+            "refund": "refund",
+            "technical": "technical",
+            "billing": "billing",
+            "account": "account",
+            "escalate": "escalator",
+        },
     )
 
     # Escalator always ends

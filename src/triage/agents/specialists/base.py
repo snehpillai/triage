@@ -67,6 +67,18 @@ class BaseSpecialist(ABC):
         """Retrieve context, run the agentic loop, and return a state update dict."""
         ticket_id = state["ticket_id"]
         content = state["content"]
+        retry_count = state.get("retry_count", 0)
+        qc_feedback = state.get("qc_feedback", "")
+
+        # On retry the QC node has already incremented retry_count to >= 1.
+        is_retry = retry_count > 0
+        if is_retry:
+            logger.info(
+                "Specialist({cat}): retry attempt for ticket={id}, qc_feedback={fb!r}",
+                cat=self.category,
+                id=ticket_id,
+                fb=qc_feedback,
+            )
 
         # 1. Retrieve top-5 relevant policy chunks filtered to this specialist's domain.
         context_docs = retrieve(content, category=self.category, top_k=5)
@@ -84,7 +96,16 @@ class BaseSpecialist(ABC):
         anthropic_tools = [_to_anthropic_tool(t) for t in self.tools]
 
         # 4. Agentic loop.
-        api_messages: list[dict[str, Any]] = [{"role": "user", "content": content}]
+        # On retry, prepend the QC feedback so the model knows what to fix.
+        if is_retry and qc_feedback:
+            retry_prefix = (
+                f"Previous attempt was rejected by quality review for the following "
+                f"reason: {qc_feedback}. Address this in your revised response.\n\n"
+            )
+            user_content = retry_prefix + content
+        else:
+            user_content = content
+        api_messages: list[dict[str, Any]] = [{"role": "user", "content": user_content}]
         tool_results: dict[str, Any] = {}
         draft_response = ""
         escalated = False
