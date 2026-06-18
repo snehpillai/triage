@@ -20,6 +20,15 @@ from triage.config import settings
 from triage.graph.state import TicketState
 from triage.retrieval.retriever import retrieve
 from triage.retrieval.types import ChunkWithScore
+from triage.tools.circuit_breaker import (
+    CircuitOpenError,
+)
+from triage.tools.circuit_breaker import (
+    circuit_breaker as _cb,
+)
+from triage.tools.circuit_breaker import (
+    open_message as _open_msg,
+)
 
 _client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
@@ -329,7 +338,10 @@ class BaseSpecialist(ABC):
                             result_str = json.dumps({"error": f"Tool '{block.name}' not available"})
                         else:
                             try:
-                                result_obj = tool.invoke(block.input)
+                                result_obj = _cb.call(
+                                    block.name,
+                                    lambda _t=tool, _b=block: _t.invoke(_b.input),
+                                )
                                 result_str = _serialize_result(result_obj)
                                 tool_results[block.name] = result_obj
                                 logger.debug(
@@ -338,6 +350,13 @@ class BaseSpecialist(ABC):
                                     name=block.name,
                                     l=len(result_str),
                                 )
+                            except CircuitOpenError:
+                                logger.warning(
+                                    "Specialist({cat}): circuit open for tool={name}",
+                                    cat=self.category,
+                                    name=block.name,
+                                )
+                                result_str = _open_msg(block.name)
                             except Exception as tool_exc:
                                 logger.error(
                                     "Specialist({cat}): tool={name} raised {e}",
@@ -413,9 +432,21 @@ class BaseSpecialist(ABC):
                             )
                         else:
                             try:
-                                result_obj = tool.invoke(json.loads(tc.function.arguments))
+                                result_obj = _cb.call(
+                                    tc.function.name,
+                                    lambda _t=tool, _tc=tc: _t.invoke(
+                                        json.loads(_tc.function.arguments)
+                                    ),
+                                )
                                 result_str = _serialize_result(result_obj)
                                 tool_results[tc.function.name] = result_obj
+                            except CircuitOpenError:
+                                logger.warning(
+                                    "Specialist({cat}): circuit open for tool={name}",
+                                    cat=self.category,
+                                    name=tc.function.name,
+                                )
+                                result_str = _open_msg(tc.function.name)
                             except Exception as tool_exc:
                                 logger.error(
                                     "Specialist({cat}): OAI tool={name} raised {e}",
