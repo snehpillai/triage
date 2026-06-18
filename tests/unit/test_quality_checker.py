@@ -1,11 +1,16 @@
-"""Unit tests for QualityChecker Stage 1 hard rules.
+"""Unit tests for QualityChecker Stage 1 (hard rules) and Stage 2 (LLM judge).
 
-All checks are deterministic - no mocking needed.
+Stage 1 tests are fully deterministic - no mocking needed.
+Stage 2 tests mock triage.agents.quality_checker._client to avoid real API calls
+and to exercise the threshold enforcement and retrieval-warning logic.
 """
+
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from triage.agents.quality_checker import QualityChecker
+from triage.retrieval.types import ChunkWithScore
 
 _QC = QualityChecker()
 
@@ -22,13 +27,53 @@ def _state(
     draft: str,
     content: str = "I need help with my order.",
     confidence: float = 0.95,
+    context_docs: list | None = None,
 ) -> dict:
     return {
         "ticket_id": "t-test",
         "content": content,
         "draft_response": draft,
         "confidence": confidence,
+        "context_docs": context_docs or [],
     }
+
+
+def _mock_judge_response(
+    overall: float = 9.0,
+    accuracy: float = 9.0,
+    completeness: float = 9.0,
+    tone: float = 9.0,
+    feedback: str = "Response is accurate and complete.",
+) -> MagicMock:
+    """Build a minimal mock Anthropic response for the Stage 2 judge tool call."""
+    block = MagicMock()
+    block.type = "tool_use"
+    block.input = {
+        "accuracy_score": accuracy,
+        "completeness_score": completeness,
+        "tone_score": tone,
+        "overall_score": overall,
+        "passes": overall >= 7.0,
+        "feedback": feedback,
+    }
+    resp = MagicMock()
+    resp.content = [block]
+    resp.usage.input_tokens = 100
+    resp.usage.output_tokens = 50
+    return resp
+
+
+def _mock_chunk(score: float) -> ChunkWithScore:
+    """Build a minimal ChunkWithScore stub with a given similarity score.
+
+    Uses model_construct to skip Pydantic's isinstance check on DocumentChunk,
+    which would reject a MagicMock. The QC only reads .score and .chunk.source_file
+    on these objects, both of which MagicMock satisfies.
+    """
+    chunk = MagicMock()
+    chunk.source_file = "refund_policy.md"
+    chunk.content = "Policy content."
+    return ChunkWithScore.model_construct(chunk=chunk, score=score)
 
 
 # ---------------------------------------------------------------------------
@@ -254,13 +299,91 @@ class TestShortCircuit:
 
 
 # ---------------------------------------------------------------------------
-# Happy path
+# Stage 2 - LLM judge (mocked)
+# ---------------------------------------------------------------------------
+
+
+class TestStage2Judge:
+    def test_passing_score_returns_passed(self) -> None:
+        with patch("triage.agents.quality_checker._client") as mock_client:
+            mock_client.messages.create.return_value = _mock_judge_response(overall=8.5)
+            result = _QC.run(_state(_GOOD_DRAFT))
+        assert result["qc_passed"] is True
+        assert result["qc_score"] == 8.5
+
+    def test_failing_score_returns_failed(self) -> None:
+        with patch("triage.agents.quality_checker._client") as mock_client:
+            mock_client.messages.create.return_value = _mock_judge_response(
+                overall=5.0, feedback="Response misquotes the refund window."
+            )
+            result = _QC.run(_state(_GOOD_DRAFT))
+        assert result["qc_passed"] is False
+        assert result["qc_score"] == 5.0
+        assert "misquotes" in result["qc_feedback"]
+
+    def test_threshold_enforced_at_exactly_7(self) -> None:
+        with patch("triage.agents.quality_checker._client") as mock_client:
+            mock_client.messages.create.return_value = _mock_judge_response(overall=7.0)
+            result = _QC.run(_state(_GOOD_DRAFT))
+        assert result["qc_passed"] is True
+
+    def test_threshold_enforced_below_7(self) -> None:
+        with patch("triage.agents.quality_checker._client") as mock_client:
+            # Even if the LLM sets passes=True, we override with the programmatic threshold.
+            block = MagicMock()
+            block.type = "tool_use"
+            block.input = {
+                "accuracy_score": 6.9,
+                "completeness_score": 6.9,
+                "tone_score": 6.9,
+                "overall_score": 6.9,
+                "passes": True,  # LLM said pass - we should override
+                "feedback": "Barely missed.",
+            }
+            resp = MagicMock()
+            resp.content = [block]
+            resp.usage.input_tokens = 100
+            resp.usage.output_tokens = 50
+            mock_client.messages.create.return_value = resp
+            result = _QC.run(_state(_GOOD_DRAFT))
+        assert result["qc_passed"] is False
+
+    def test_low_retrieval_score_appends_warning(self) -> None:
+        low_score_docs = [_mock_chunk(0.42)]
+        with patch("triage.agents.quality_checker._client") as mock_client:
+            mock_client.messages.create.return_value = _mock_judge_response(
+                overall=8.0, feedback="Good response."
+            )
+            result = _QC.run(_state(_GOOD_DRAFT, context_docs=low_score_docs))
+        assert result["qc_passed"] is True  # warning doesn't cause failure
+        assert "0.42" in result["qc_feedback"]
+        assert "poorly grounded" in result["qc_feedback"]
+
+    def test_high_retrieval_score_no_warning(self) -> None:
+        high_score_docs = [_mock_chunk(0.65)]
+        with patch("triage.agents.quality_checker._client") as mock_client:
+            mock_client.messages.create.return_value = _mock_judge_response(
+                overall=8.0, feedback="Good response."
+            )
+            result = _QC.run(_state(_GOOD_DRAFT, context_docs=high_score_docs))
+        assert "poorly grounded" not in result["qc_feedback"]
+
+    def test_stage2_not_called_when_stage1_fails(self) -> None:
+        # Stage 1 should short-circuit without ever touching the Anthropic client.
+        with patch("triage.agents.quality_checker._client") as mock_client:
+            _QC.run(_state("too short"))
+            mock_client.messages.create.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Happy path - mocked Stage 2
 # ---------------------------------------------------------------------------
 
 
 class TestHappyPath:
-    def test_clean_response_passes_all_rules(self) -> None:
-        result = _QC.run(_state(_GOOD_DRAFT))
+    def test_clean_response_passes_all_stages(self) -> None:
+        with patch("triage.agents.quality_checker._client") as mock_client:
+            mock_client.messages.create.return_value = _mock_judge_response(overall=9.0)
+            result = _QC.run(_state(_GOOD_DRAFT))
         assert result["qc_passed"] is True
-        assert result["qc_score"] == 10.0
-        assert result["qc_feedback"] == ""
+        assert result["qc_score"] == 9.0
