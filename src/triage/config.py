@@ -29,5 +29,12 @@ class Settings(BaseSettings):
     specialist_model: str = "claude-sonnet-4-6"
     quality_checker_model: str = "claude-haiku-4-5-20251001"
 
+    # API
+    api_key: str = ""  # set a real key in .env; empty string means auth always passes
+    environment: str = "development"  # set to "production" to enforce X-API-Key checks
+    redis_stream_name: str = "tickets"
+    # Override via CORS_ORIGINS='["https://demo.example.com"]' in .env
+    cors_origins: list[str] = ["http://localhost:8501"]
+
 
 settings = Settings()  # type: ignore[call-arg]

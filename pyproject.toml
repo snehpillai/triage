@@ -29,6 +29,7 @@ dependencies = [
     "pgvector>=0.3",
     "sqlalchemy>=2.0",
     "alembic>=1.14",
+    "greenlet>=3.0",  # required by sqlalchemy async engine (psycopg_async dialect)
 
     # Queue
     "redis>=5.2",
@@ -85,6 +86,10 @@ select = [
 ignore = [
     "E501",  # line too long - black handles this
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# FastAPI intentionally uses function calls (Depends, Header) in default arguments.
+"src/triage/api/**" = ["B008"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["triage"]
