@@ -89,7 +89,7 @@ class TestRouterClassification:
 
 
 # ---------------------------------------------------------------------------
-# Return-shape tests — verify structural guarantees regardless of intent
+# Return-shape tests: verify structural guarantees regardless of intent
 # ---------------------------------------------------------------------------
 
 
@@ -124,7 +124,7 @@ class TestRouterReturnShape:
 
 
 # ---------------------------------------------------------------------------
-# API call contract — verify the router talks to Claude the right way
+# API call contract: verify the router talks to Claude the right way
 # ---------------------------------------------------------------------------
 
 

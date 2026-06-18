@@ -4,10 +4,10 @@
 Runs three scenarios through the full LangGraph pipeline and prints state at
 every node transition:
 
-  A  Happy path         — refund ticket resolves, QC passes, escalate=False
-  B  QC retry/escalate  — bad system prompt forces forbidden phrase, QC retries
+  A  Happy path         -  refund ticket resolves, QC passes, escalate=False
+  B  QC retry/escalate  -  bad system prompt forces forbidden phrase, QC retries
                           once, second failure escalates; EscalationRecord written
-  C  Low-confidence     — vague ticket short-circuits to escalator before any
+  C  Low-confidence     -  vague ticket short-circuits to escalator before any
                           specialist runs (confidence < 0.6 guard in builder.py)
 
 Prerequisites: Docker must be running (Postgres on 5432, Redis on 6379).
@@ -107,16 +107,16 @@ def _run(ticket_id: str, content: str) -> dict[str, Any]:
         for node, delta in updates.items():
             _print_delta(node, delta)
             # Accumulate non-reducer fields; messages uses add_messages reducer
-            # so we skip it — we never assert on message history here.
+            # so we skip it -  we never assert on message history here.
             final.update({k: v for k, v in delta.items() if k != "messages"})
     return final
 
 
-# ── Scenario A — Happy path ──────────────────────────────────────────────────
+# ── Scenario A -  Happy path ──────────────────────────────────────────────────
 
 
 def scenario_a() -> None:
-    _banner("SCENARIO A — Happy path")
+    _banner("SCENARIO A -  Happy path")
     content = "I want a refund on order ORD-1001, it arrived damaged."
     ticket_id = _create_ticket(content)
     print(f"  ticket_id : {ticket_id}")
@@ -137,7 +137,7 @@ def scenario_a() -> None:
     print("\n  PASS")
 
 
-# ── Scenario B — QC retry + escalation ──────────────────────────────────────
+# ── Scenario B -  QC retry + escalation ──────────────────────────────────────
 
 # Forces the specialist to produce a response containing a QC Stage 1 forbidden
 # phrase ("I cannot help with that").  Both QC runs fail; on the second failure
@@ -151,7 +151,7 @@ _BAD_PROMPT = (
 
 
 def scenario_b() -> None:
-    _banner("SCENARIO B — QC catches forbidden phrase → retry → escalate")
+    _banner("SCENARIO B -  QC catches forbidden phrase → retry → escalate")
     content = "I want a refund on order ORD-1001, it arrived damaged."
     ticket_id = _create_ticket(content)
     print(f"  ticket_id : {ticket_id}")
@@ -177,7 +177,7 @@ def scenario_b() -> None:
     print("  ✓ escalate=True")
     print(
         f"  ✓ retry_count={state['retry_count']}  "
-        "(QC fired twice — first fail retried, second fail escalated)"
+        "(QC fired twice -  first fail retried, second fail escalated)"
     )
     print(f"  ✓ qc_feedback: {str(state.get('qc_feedback', ''))[:80]}")
 
@@ -193,18 +193,18 @@ def scenario_b() -> None:
     print("\n  PASS")
 
 
-# ── Scenario C — Low-confidence pre-specialist escalation ────────────────────
+# ── Scenario C -  Low-confidence pre-specialist escalation ────────────────────
 
 
 def scenario_c() -> None:
-    _banner("SCENARIO C — Low-confidence → pre-specialist escalation")
+    _banner("SCENARIO C -  Low-confidence → pre-specialist escalation")
     print(
         "  Design choice: _route_to_specialist in builder.py checks\n"
         "  confidence < 0.6 before looking at intent. A ticket the router\n"
-        "  can't classify reliably is sent straight to the escalator — no\n"
+        "  can't classify reliably is sent straight to the escalator -  no\n"
         "  specialist LLM call is wasted. The threshold mirrors QC Stage 1's\n"
         "  own _check_confidence so the two are consistent.\n"
-        "  (The alternative — routing to QC first — would fail on the length\n"
+        "  (The alternative -  routing to QC first -  would fail on the length\n"
         "  check before reaching the confidence check, giving a misleading\n"
         "  failure reason.)\n"
     )
@@ -227,10 +227,10 @@ def scenario_c() -> None:
         # No specialist ran → these fields are absent / empty.
         assert not state.get(
             "context_docs"
-        ), "context_docs must be absent — specialist must not have run"
+        ), "context_docs must be absent -  specialist must not have run"
         assert not state.get(
             "draft_response"
-        ), "draft_response must be absent — specialist must not have run"
+        ), "draft_response must be absent -  specialist must not have run"
         print("  ✓ escalate=True")
         print("  ✓ context_docs absent (specialist not called)")
         print("  ✓ draft_response absent (specialist not called)")
@@ -251,7 +251,7 @@ def scenario_c() -> None:
 
 
 def spot_check_db() -> None:
-    _banner("DB SPOT-CHECK — 5 most recent EscalationRecord rows")
+    _banner("DB SPOT-CHECK -  5 most recent EscalationRecord rows")
     with Session(_engine) as session:
         rows = (
             session.query(EscalationRecord)
@@ -284,7 +284,7 @@ if __name__ == "__main__":
     logger.remove()
     logger.add(sys.stderr, level="WARNING", colorize=True)
 
-    _banner(f"Day 3 Pipeline Verification  —  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    _banner(f"Day 3 Pipeline Verification  -   {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
     try:
         scenario_a()

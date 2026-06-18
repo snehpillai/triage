@@ -35,28 +35,33 @@ Each Specialist (Claude Sonnet) retrieves relevant policy and FAQ documents via 
 ```
 src/triage/
 ├── agents/
-│   ├── router.py           # Classifies ticket intent
-│   ├── specialists/        # One agent per intent category
-│   ├── quality_checker.py  # LLM-as-judge + rule-based gate
-│   └── escalator.py        # Human handoff logic
+│   ├── router.py           # Classifies ticket intent (Haiku, forced tool_choice)
+│   ├── specialists/        # One agent per intent category (Sonnet, agentic loop)
+│   │   └── base.py         # Shared loop: retrieval, tool calls, OAI fallback
+│   ├── quality_checker.py  # Stage 1 rules + Stage 2 LLM-as-judge (Haiku)
+│   └── escalator.py        # Generates EscalationSummary, writes DB record
 ├── graph/
 │   ├── state.py            # Shared LangGraph state definition
-│   └── builder.py          # Wires nodes, edges, and conditions
-├── retrieval/              # Embedding + pgvector retrieval
-├── tools/                  # Order lookup, account status
+│   └── builder.py          # Nodes, edges, retry cycle, confidence guard
+├── retrieval/              # Voyage AI embedder + pgvector retrieval
+├── tools/
+│   ├── order_lookup.py     # Live order data tool
+│   ├── account_status.py   # Live account data tool
+│   └── circuit_breaker.py  # Redis-backed per-tool circuit breaker
 ├── api/                    # FastAPI ingress
 ├── queue/                  # Redis Streams producer/consumer
 ├── db/                     # SQLAlchemy models + Alembic migrations
 ├── observability/          # LangSmith setup, Prometheus metrics
 └── config.py               # Pydantic Settings, env-driven
 tests/
-├── unit/                   # Fast, no external deps
-├── integration/            # Hits real DB/Redis
+├── unit/                   # Fast, no external deps (FakeRedis for circuit breaker)
+├── integration/            # Hits real DB/Redis; includes cross-provider fallback tests
 └── eval/                   # 500-case evaluation harness
 scripts/
 ├── hello_claude.py          # API smoke test
 ├── ingest_docs.py           # Chunk and embed knowledge base
-└── test_day2_pipeline.py    # End-to-end refund pipeline smoke test
+├── test_day2_pipeline.py    # Day 2 end-to-end smoke test (refund pipeline)
+└── test_day3_pipeline.py    # Day 3 verification: happy path, QC retry, low-confidence
 demo/
 └── app.py                  # Streamlit demo UI
 ```
@@ -104,8 +109,11 @@ python scripts/ingest_docs.py
 # 6. Smoke test
 python scripts/hello_claude.py
 
-# 7. End-to-end pipeline test (runs three refund tickets through the full graph)
+# 7. Day 2 pipeline smoke test (three refund tickets, verifies retrieval + tools)
 python scripts/test_day2_pipeline.py
+
+# 8. Day 3 full-pipeline verification (happy path, QC retry, low-confidence escalation)
+python scripts/test_day3_pipeline.py
 ```
 
 > **Voyage AI free tier:** the ingestion script sleeps 21 seconds between files to respect the 3 RPM limit. Add a payment method at dash.voyageai.com/billing to unlock higher limits (200M free tokens still apply).
@@ -123,3 +131,9 @@ python scripts/test_day2_pipeline.py
 **Why pgvector over a managed vector DB?** At ~10k documents and one team, operating a separate vector service adds complexity without benefit. pgvector runs in the same Postgres instance as the rest of the application state. Migration path to Pinecone or Weaviate is documented if the doc count grows.
 
 **Why async ingress?** LLM calls take 3-8 seconds. Holding an HTTP connection open for that duration at scale is a problem. The API accepts a ticket and returns a `ticket_id` immediately; the client polls or receives a webhook when processing completes.
+
+**Why a QC retry cycle instead of just escalating on first rejection?** Most QC failures are recoverable: a response was too short, used a cop-out phrase, or scored just below the LLM judge threshold. A single retry with the rejection reason prepended to the prompt resolves these in practice. Escalating on the first rejection would push too many tickets to humans. Two rejections in a row signals a harder problem and escalates reliably.
+
+**Why a cross-provider fallback to OpenAI?** Anthropic's API is occasionally unavailable (5xx, timeouts, rate limits). Switching to `gpt-4o-mini` mid-conversation rather than failing the ticket keeps SLAs intact. The Anthropic message format is converted to OpenAI's on the fly; the `provider` field in state records which backend actually generated the draft.
+
+**Why a per-tool circuit breaker?** Downstream tools (order lookup, account status) can degrade independently. Without a circuit breaker, a slow or erroring tool adds latency to every ticket that triggers it. After five failures the circuit opens for 60 seconds; during that window the model receives an explicit "service unavailable" message and answers from policy alone rather than fabricating data. Redis `INCR` is atomic so there are no race conditions under concurrent load.

@@ -54,7 +54,7 @@ def _route_to_specialist(state: TicketState) -> str:
 
     Short-circuits to the escalator for low-confidence classifications so we
     never spend a specialist LLM call on a ticket the router couldn't classify
-    reliably — the same confidence check QC Stage 1 would apply, applied early.
+    reliably; the same confidence check QC Stage 1 would apply, applied early.
     """
     if state.get("confidence", 1.0) < _CONFIDENCE_THRESHOLD:
         return "escalate"
