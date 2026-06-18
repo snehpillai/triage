@@ -1,14 +1,13 @@
 """LangGraph graph builder for the triage pipeline.
 
-Wires together: Router -> Specialist (4 branches) -> QC -> END.
-
-The Escalator node is still a stub - replaced in a later Day 3 step.
+Wires together: Router -> Specialist (4 branches) -> QC -> END or Escalator.
 """
 
 from typing import Any
 
 from langgraph.graph import END, StateGraph
 
+from triage.agents.escalator import Escalator
 from triage.agents.quality_checker import QualityChecker
 from triage.agents.router import route
 from triage.agents.specialists.account import AccountSpecialist
@@ -23,6 +22,7 @@ _technical = TechnicalSpecialist()
 _billing = BillingSpecialist()
 _account = AccountSpecialist()
 _qc = QualityChecker()
+_escalator = Escalator()
 
 
 def _qc_node(state: TicketState) -> dict[str, Any]:
@@ -38,14 +38,6 @@ def _qc_node(state: TicketState) -> dict[str, Any]:
     else:
         result["retry_count"] = state.get("retry_count", 0) + 1
     return result
-
-
-def _escalator_node(state: TicketState) -> dict[str, Any]:
-    """Placeholder escalator: writes a canned escalation message."""
-    reason = state.get("escalation_reason", "No reason provided")
-    return {
-        "final_response": (f"Your request has been escalated to a human agent. Reason: {reason}")
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -99,7 +91,7 @@ def build_graph() -> StateGraph:
     graph.add_node("billing", _billing.run)
     graph.add_node("account", _account.run)
     graph.add_node("qc", _qc_node)
-    graph.add_node("escalator", _escalator_node)
+    graph.add_node("escalator", _escalator.run)
 
     # Entry point
     graph.set_entry_point("router")
