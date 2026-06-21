@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     # API
     api_key: str = ""  # set a real key in .env; empty string means auth always passes
     environment: str = "development"  # set to "production" to enforce X-API-Key checks
-    redis_stream_name: str = "tickets"
+    redis_stream_name: str = "triage:tickets"
     # Override via CORS_ORIGINS='["https://demo.example.com"]' in .env
     cors_origins: list[str] = ["http://localhost:8501"]
 
