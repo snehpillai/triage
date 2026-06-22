@@ -2,6 +2,9 @@ from typing import Any, Literal
 
 import anthropic
 from langchain_core.messages import HumanMessage
+from langsmith.run_helpers import set_run_metadata
+from langsmith.utils import tracing_is_enabled
+from langsmith.wrappers import wrap_anthropic
 from loguru import logger
 from pydantic import BaseModel, Field
 
@@ -9,7 +12,8 @@ from triage.config import settings
 from triage.graph.state import TicketState
 
 # Lightweight initialisation - no network call until messages.create() is invoked.
-_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+# wrap_anthropic patches messages.create() so each call is traced as an LLM span in LangSmith.
+_client = wrap_anthropic(anthropic.Anthropic(api_key=settings.anthropic_api_key))
 
 # Single job: map ticket text to one of four intent labels.
 # No downstream agent descriptions, no examples, no answering the ticket.
@@ -77,6 +81,16 @@ def route(state: TicketState) -> dict[str, Any]:
         i=response.usage.input_tokens,
         o=response.usage.output_tokens,
     )
+
+    # Pre-compute the routing decision using the same threshold as _route_to_specialist.
+    _THRESHOLD = 0.6
+    routing_decision = "escalate" if output.confidence < _THRESHOLD else output.intent
+    if tracing_is_enabled():
+        set_run_metadata(
+            intent=output.intent,
+            confidence=round(output.confidence, 3),
+            routing_decision=routing_decision,
+        )
 
     return {
         "intent": output.intent,

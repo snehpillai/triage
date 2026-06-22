@@ -14,6 +14,9 @@ import anthropic
 import openai
 from langchain_core.messages import AIMessage
 from langchain_core.tools import BaseTool
+from langsmith.run_helpers import set_run_metadata
+from langsmith.utils import tracing_is_enabled
+from langsmith.wrappers import wrap_anthropic, wrap_openai
 from loguru import logger
 
 from triage.config import settings
@@ -30,12 +33,14 @@ from triage.tools.circuit_breaker import (
     open_message as _open_msg,
 )
 
-_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+# Wrap both clients so every messages.create() / chat.completions.create() call
+# is automatically traced as an LLM child span in LangSmith.
+_client = wrap_anthropic(anthropic.Anthropic(api_key=settings.anthropic_api_key))
 
 # OpenAI client used only when Anthropic returns 5xx/timeout/rate-limit.
 # api_key falls back to a placeholder so the module loads even when OPENAI_API_KEY
 # is not set; a real call without a valid key will raise AuthenticationError.
-_oai_client = openai.OpenAI(api_key=settings.openai_api_key or "sk-not-configured")
+_oai_client = wrap_openai(openai.OpenAI(api_key=settings.openai_api_key or "sk-not-configured"))
 
 _OPENAI_FALLBACK_MODEL = "gpt-4o-mini"
 
@@ -481,6 +486,15 @@ class BaseSpecialist(ABC):
                 id=ticket_id,
             )
             escalated = True
+
+        if tracing_is_enabled():
+            set_run_metadata(
+                category=self.category,
+                retrieval_scores_top3=[round(d.score, 3) for d in context_docs[:3]],
+                tool_calls_made=list(tool_results.keys()),
+                provider=provider,
+                escalated=escalated,
+            )
 
         if escalated:
             return {

@@ -10,6 +10,9 @@ import uuid
 from typing import Any
 
 import anthropic
+from langsmith.run_helpers import set_run_metadata
+from langsmith.utils import tracing_is_enabled
+from langsmith.wrappers import wrap_anthropic
 from loguru import logger
 from pydantic import BaseModel
 from sqlalchemy import create_engine
@@ -19,7 +22,7 @@ from triage.config import settings
 from triage.db.models import EscalationRecord
 from triage.graph.state import TicketState
 
-_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+_client = wrap_anthropic(anthropic.Anthropic(api_key=settings.anthropic_api_key))
 _engine = create_engine(settings.database_url)
 
 _SLA = "24 hours"
@@ -118,6 +121,21 @@ class Escalator:
         specialist_reason = state.get("escalation_reason", "")
         reason = qc_feedback or specialist_reason or "Escalated by automated system"
         confidence = state.get("confidence", None)
+
+        # Derive which pipeline step triggered the escalation for the trace.
+        if qc_feedback:
+            escalation_source = "qc"
+        elif specialist_reason:
+            escalation_source = "specialist"
+        else:
+            escalation_source = "pre_specialist_routing"
+
+        if tracing_is_enabled():
+            set_run_metadata(
+                escalation_reason=reason[:200],
+                escalation_source=escalation_source,
+                confidence=round(confidence, 3) if confidence is not None else None,
+            )
 
         logger.info("Escalator: ticket={id} reason={r!r}", id=ticket_id, r=reason[:120])
 

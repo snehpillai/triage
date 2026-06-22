@@ -9,6 +9,9 @@ import re
 from typing import Any
 
 import anthropic
+from langsmith.run_helpers import set_run_metadata
+from langsmith.utils import tracing_is_enabled
+from langsmith.wrappers import wrap_anthropic
 from loguru import logger
 from pydantic import BaseModel, Field
 
@@ -45,7 +48,7 @@ _LOW_RETRIEVAL_THRESHOLD = 0.50
 # Stage 2 - LLM judge schema and prompt
 # ---------------------------------------------------------------------------
 
-_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+_client = wrap_anthropic(anthropic.Anthropic(api_key=settings.anthropic_api_key))
 
 
 class QCJudgeOutput(BaseModel):
@@ -133,8 +136,12 @@ class QualityChecker:
 
         if stage1_failure:
             logger.warning("QC Stage 1 failed ticket={id}: {msg}", id=ticket_id, msg=stage1_failure)
+            if tracing_is_enabled():
+                set_run_metadata(stage1_passed=False, stage1_failure_reason=stage1_failure)
             return {"qc_score": 0.0, "qc_feedback": stage1_failure, "qc_passed": False}
 
+        if tracing_is_enabled():
+            set_run_metadata(stage1_passed=True)
         logger.info("QC Stage 1 passed ticket={id}", id=ticket_id)
 
         # Log retrieval scores before calling the judge
@@ -206,6 +213,15 @@ class QualityChecker:
         # Enforce the threshold programmatically - don't trust the LLM's boolean.
         passes = output.overall_score >= _QC_PASS_THRESHOLD
         feedback = output.feedback
+
+        if tracing_is_enabled():
+            set_run_metadata(
+                stage2_overall_score=round(output.overall_score, 2),
+                stage2_passed=passes,
+                stage2_accuracy=round(output.accuracy_score, 2),
+                stage2_completeness=round(output.completeness_score, 2),
+                stage2_tone=round(output.tone_score, 2),
+            )
 
         logger.info(
             "QC Stage 2 ticket={id} overall={s:.1f} passes={p} "
