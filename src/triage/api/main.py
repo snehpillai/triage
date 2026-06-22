@@ -9,6 +9,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from triage.api.routes.tickets import router as tickets_router
 from triage.config import settings
+from triage.observability import setup_tracing
+
+setup_tracing()
 
 app = FastAPI(
     title="Triage API",

@@ -26,6 +26,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import redis
+from langsmith import trace
 from loguru import logger
 from redis.exceptions import ResponseError
 from sqlalchemy import create_engine
@@ -214,7 +215,19 @@ class TicketConsumer:
             return
 
         try:
-            state = _graph.invoke({"ticket_id": ticket_id_str, "content": content})
+            with trace(
+                name="ticket_pipeline",
+                run_type="chain",
+                metadata={"ticket_id": ticket_id_str},
+                tags=["production"],
+            ) as run:
+                state = _graph.invoke({"ticket_id": ticket_id_str, "content": content})
+                run.add_outputs(
+                    {
+                        "intent": state.get("intent"),
+                        "escalated": state.get("escalate", False),
+                    }
+                )
             self._persist_result(tid, state)
             self._safe_xack(msg_id)
             logger.info(

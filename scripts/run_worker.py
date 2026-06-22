@@ -14,9 +14,11 @@ sys.path.insert(0, "src")
 
 from loguru import logger
 
+from triage.observability import setup_tracing
 from triage.queue.consumer import TicketConsumer
 
 if __name__ == "__main__":
+    setup_tracing()
     consumer = TicketConsumer()
     try:
         consumer.run()
