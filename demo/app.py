@@ -313,12 +313,8 @@ if "ticket_id" in st.session_state:
 
         response_text = result.get("response") or ""
         if response_text:
-            st.markdown(
-                f'<div style="background:#f8f9fa;border-left:4px solid #4CAF50;'
-                f'padding:16px;border-radius:4px;white-space:pre-wrap">'
-                f"{response_text}</div>",
-                unsafe_allow_html=True,
-            )
+            with st.container(border=True):
+                st.markdown(response_text)
         else:
             st.caption("No response text available.")
 
