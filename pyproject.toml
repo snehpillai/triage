@@ -98,4 +98,7 @@ known-first-party = ["triage"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 asyncio_mode = "auto"
-addopts = "-v --tb=short"
+addopts = "-v --tb=short -m 'not integration'"
+markers = [
+    "integration: slow tests that hit real APIs and databases (deselected by default)",
+]

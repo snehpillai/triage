@@ -14,6 +14,34 @@ from triage.retrieval.types import ChunkWithScore
 
 _QC = QualityChecker()
 
+
+@pytest.fixture(autouse=True)
+def _stub_stage2(request):
+    """Stub Stage 2 for all tests that don't set their own _client mock.
+
+    Tests inside TestStage2Judge and TestStage15Disclosures set explicit patches
+    that override this stub - the innermost patch wins. All other tests get a
+    passing Stage 2 result so Stage 1 assertions remain the focus.
+    """
+    with patch("triage.agents.quality_checker._client") as mock_client:
+        block = MagicMock()
+        block.type = "tool_use"
+        block.input = {
+            "accuracy_score": 9.0,
+            "completeness_score": 9.0,
+            "tone_score": 9.0,
+            "overall_score": 9.0,
+            "passes": True,
+            "feedback": "auto-stub: stage 2 not under test",
+        }
+        resp = MagicMock()
+        resp.content = [block]
+        resp.usage.input_tokens = 10
+        resp.usage.output_tokens = 10
+        mock_client.messages.create.return_value = resp
+        yield mock_client
+
+
 # A valid draft that passes every rule - used as a baseline in mutation tests.
 _GOOD_DRAFT = (
     "Thank you for reaching out. Based on our refund policy, your request for order "
@@ -28,6 +56,7 @@ def _state(
     content: str = "I need help with my order.",
     confidence: float = 0.95,
     context_docs: list | None = None,
+    intent: str = "",
 ) -> dict:
     return {
         "ticket_id": "t-test",
@@ -35,6 +64,7 @@ def _state(
         "draft_response": draft,
         "confidence": confidence,
         "context_docs": context_docs or [],
+        "intent": intent,
     }
 
 
@@ -296,6 +326,82 @@ class TestShortCircuit:
         # Forbidden phrase AND low confidence - phrase fires first
         result = _QC.run(_state(f"{_GOOD_DRAFT} As an AI I have limitations.", confidence=0.5))
         assert "cop-out phrasing" in result["qc_feedback"]
+
+
+# ---------------------------------------------------------------------------
+# Stage 1.5 - Refund required disclosures (deterministic, no LLM)
+# ---------------------------------------------------------------------------
+
+# A draft that includes all 5 required Section 8 disclosures.
+_COMPLIANT_REFUND_DRAFT = (
+    "Your return has been approved. Please attach photos of the damage when submitting "
+    "your request. An RMA number will be issued within 1 business day. Ship the item "
+    "back within 10 business days of RMA issuance using the prepaid return label. "
+    "Inspection is completed within 2 business days, then your refund is initiated."
+)
+
+
+class TestStage15Disclosures:
+    def test_all_disclosures_present_passes(self) -> None:
+        with patch("triage.agents.quality_checker._client") as mock_client:
+            mock_client.messages.create.return_value = _mock_judge_response(overall=8.0)
+            result = _QC.run(_state(_COMPLIANT_REFUND_DRAFT, intent="refund"))
+        assert result["qc_passed"] is True
+
+    def test_missing_rma_fails_with_targeted_feedback(self) -> None:
+        no_rma = _COMPLIANT_REFUND_DRAFT.replace("RMA", "return number").replace(
+            "rma", "return number"
+        )
+        result = _QC.run(_state(no_rma, intent="refund"))
+        assert result["qc_passed"] is False
+        assert "8.2" in result["qc_feedback"]
+
+    def test_missing_photo_disclosure_fails(self) -> None:
+        no_photo = (
+            "Your return is approved. An RMA number will be issued within 1 business day. "
+            "Ship back within 10 business days. Inspection within 2 business days then refund."
+        )
+        result = _QC.run(_state(no_photo, intent="refund"))
+        assert result["qc_passed"] is False
+        assert "8.1" in result["qc_feedback"] or "photo" in result["qc_feedback"].lower()
+
+    def test_missing_10_day_window_fails(self) -> None:
+        no_10_day = _COMPLIANT_REFUND_DRAFT.replace("10 business days of RMA issuance", "promptly")
+        result = _QC.run(_state(no_10_day, intent="refund"))
+        assert result["qc_passed"] is False
+        assert "8.3" in result["qc_feedback"]
+
+    def test_denial_signal_bypasses_check(self) -> None:
+        # Denial responses don't need Section 8 steps.
+        denial = (
+            "Unfortunately your request is not eligible for a refund. "
+            "The 30-day return window has passed for this order."
+        )
+        with patch("triage.agents.quality_checker._client") as mock_client:
+            mock_client.messages.create.return_value = _mock_judge_response(overall=8.0)
+            _QC.run(_state(denial, intent="refund"))
+        # Stage 1.5 skipped due to denial signal; Stage 2 runs.
+        assert mock_client.messages.create.call_count == 1
+
+    def test_non_refund_intent_skips_disclosure_check(self) -> None:
+        for intent in ("technical", "billing", "account"):
+            with patch("triage.agents.quality_checker._client") as mock_client:
+                mock_client.messages.create.return_value = _mock_judge_response(overall=8.0)
+                # No Section 8 keywords - would fail Stage 1.5 if applied.
+                _QC.run(_state(_GOOD_DRAFT, intent=intent))
+            # Stage 2 ran (not short-circuited by Stage 1.5).
+            assert mock_client.messages.create.call_count == 1, f"failed for intent={intent}"
+
+    def test_status_inquiry_without_process_keywords_skips_check(self) -> None:
+        # "refund" intent but no return-process keywords - not a walkthrough response.
+        status_reply = (
+            "Your refund of $349.99 is currently under review. Our team will contact "
+            "you within 3 business days with an update. No action is needed from you now."
+        )
+        with patch("triage.agents.quality_checker._client") as mock_client:
+            mock_client.messages.create.return_value = _mock_judge_response(overall=8.0)
+            _QC.run(_state(status_reply, intent="refund"))
+        assert mock_client.messages.create.call_count == 1
 
 
 # ---------------------------------------------------------------------------
