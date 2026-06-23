@@ -25,5 +25,52 @@ services:
       timeout: 5s
       retries: 5
 
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: triage-app
+    env_file: ../.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://triage:triage@postgres:5432/triage
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    image: triage-app
+    env_file: ../.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://triage:triage@postgres:5432/triage
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "9091:9091"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+    command: python scripts/run_worker.py
+
+  demo:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.demo
+    env_file: ../.env
+    environment:
+      TRIAGE_API_URL: http://api:8000
+      TRIAGE_METRICS_URL: http://worker:9091
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+
 volumes:
   pgdata:

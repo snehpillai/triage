@@ -13,12 +13,17 @@ import sys
 sys.path.insert(0, "src")
 
 from loguru import logger
+from prometheus_client import start_http_server
 
 from triage.observability import setup_tracing
 from triage.queue.consumer import TicketConsumer
 
+_METRICS_PORT = 9091
+
 if __name__ == "__main__":
     setup_tracing()
+    start_http_server(_METRICS_PORT)
+    logger.info("Worker metrics exposed at http://localhost:{p}/", p=_METRICS_PORT)
     consumer = TicketConsumer()
     try:
         consumer.run()

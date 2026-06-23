@@ -1,4 +1,9 @@
-"""Observability utilities: LangSmith tracing setup."""
+"""Observability utilities: LangSmith tracing setup and Prometheus metrics.
+
+Importing this package registers all Prometheus metric collectors with the
+default registry. Both the API process (which imports setup_tracing) and the
+worker (same) therefore have metrics registered before the first tick.
+"""
 
 import os
 
@@ -6,6 +11,9 @@ import langsmith
 from loguru import logger
 
 from triage.config import settings
+from triage.observability import (
+    metrics as _metrics,  # noqa: F401, TCH001 - register Prometheus collectors
+)
 
 
 def setup_tracing() -> None:

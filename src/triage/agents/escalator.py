@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from triage.config import settings
 from triage.db.models import EscalationRecord
 from triage.graph.state import TicketState
+from triage.observability.metrics import record_llm_call
 
 _client = wrap_anthropic(anthropic.Anthropic(api_key=settings.anthropic_api_key))
 _engine = create_engine(settings.database_url)
@@ -165,6 +166,9 @@ class Escalator:
 
         tool_block = next(b for b in response.content if b.type == "tool_use")
         summary = EscalationSummary.model_validate(tool_block.input)
+        record_llm_call(
+            agent="escalator", model=settings.quality_checker_model, provider="anthropic"
+        )
 
         logger.debug(
             "Escalator: summary generated intent={i} sources={s} tools={t}",

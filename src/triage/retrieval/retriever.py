@@ -1,3 +1,5 @@
+import time
+
 from loguru import logger
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
@@ -6,6 +8,9 @@ from triage.config import settings
 from triage.db.models import DocumentChunk
 from triage.retrieval.embedder import VoyageEmbedder
 from triage.retrieval.types import ChunkWithScore
+
+_RATE_LIMIT_RETRIES = 4
+_RATE_LIMIT_BASE_DELAY = 20.0  # seconds; doubles each attempt
 
 # One engine per process - holds the connection pool.
 _engine = create_engine(settings.database_url)
@@ -41,7 +46,26 @@ def retrieve(
         query has weak overlap with the knowledge base - the QC agent uses this
         to flag responses where the specialist may be extrapolating.
     """
-    query_vec: list[float] = _embedder.embed_query(query)
+    query_vec: list[float] | None = None
+    for attempt in range(_RATE_LIMIT_RETRIES):
+        try:
+            query_vec = _embedder.embed_query(query)
+            break
+        except Exception as exc:
+            if "rate limit" in str(exc).lower() or "RateLimitError" in type(exc).__name__:
+                delay = _RATE_LIMIT_BASE_DELAY * (2**attempt)
+                logger.warning(
+                    "Voyage rate limit on attempt {a}/{m}, retrying in {d:.0f}s: {e}",
+                    a=attempt + 1,
+                    m=_RATE_LIMIT_RETRIES,
+                    d=delay,
+                    e=exc,
+                )
+                time.sleep(delay)
+            else:
+                raise
+    if query_vec is None:
+        raise RuntimeError("Voyage embedding failed after all retries (rate limit)")
 
     # cosine_distance() emits the pgvector <=> operator.
     # <=> returns cosine *distance* (0 = identical, 2 = opposite).

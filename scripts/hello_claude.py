@@ -12,7 +12,7 @@ from triage.config import settings
 def main() -> None:
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
-    logger.info("Sending test message to Claude ({model})", model=settings.specialist_model)
+    logger.info("Sending test message to LLM ({model})", model=settings.specialist_model)
 
     message = client.messages.create(
         model=settings.specialist_model,

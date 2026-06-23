@@ -124,7 +124,7 @@ class TestRouterReturnShape:
 
 
 # ---------------------------------------------------------------------------
-# API call contract: verify the router talks to Claude the right way
+# API call contract: verify the router talks to the LLM the right way
 # ---------------------------------------------------------------------------
 
 

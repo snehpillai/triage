@@ -21,6 +21,7 @@ from loguru import logger
 
 from triage.config import settings
 from triage.graph.state import TicketState
+from triage.observability.metrics import record_circuit_open, record_llm_call, record_tool_failure
 from triage.retrieval.retriever import retrieve
 from triage.retrieval.types import ChunkWithScore
 from triage.tools.circuit_breaker import (
@@ -302,6 +303,7 @@ class BaseSpecialist(ABC):
                     oai_messages = _to_oai_messages(api_messages)
                 else:
                     # Anthropic succeeded - handle its response and continue the loop.
+                    record_llm_call(agent="specialist", model=self.model, provider="anthropic")
                     logger.debug(
                         "Specialist({cat}) iter={i}/{max} stop={r} out_tokens={t}",
                         cat=self.category,
@@ -361,6 +363,7 @@ class BaseSpecialist(ABC):
                                     cat=self.category,
                                     name=block.name,
                                 )
+                                record_circuit_open(block.name)
                                 result_str = _open_msg(block.name)
                             except Exception as tool_exc:
                                 logger.error(
@@ -369,6 +372,7 @@ class BaseSpecialist(ABC):
                                     name=block.name,
                                     e=str(tool_exc),
                                 )
+                                record_tool_failure(block.name)
                                 result_str = json.dumps({"error": str(tool_exc)})
 
                         tool_result_blocks.append(
@@ -397,6 +401,11 @@ class BaseSpecialist(ABC):
 
                 oai_response = _oai_client.chat.completions.create(**oai_kwargs)
                 choice = oai_response.choices[0]
+                record_llm_call(
+                    agent="specialist",
+                    model=_OPENAI_FALLBACK_MODEL,
+                    provider="openai",
+                )
 
                 logger.debug(
                     "Specialist({cat}) OAI iter={i}/{max} finish={r}",
@@ -451,6 +460,7 @@ class BaseSpecialist(ABC):
                                     cat=self.category,
                                     name=tc.function.name,
                                 )
+                                record_circuit_open(tc.function.name)
                                 result_str = _open_msg(tc.function.name)
                             except Exception as tool_exc:
                                 logger.error(
@@ -459,6 +469,7 @@ class BaseSpecialist(ABC):
                                     name=tc.function.name,
                                     e=str(tool_exc),
                                 )
+                                record_tool_failure(tc.function.name)
                                 result_str = json.dumps({"error": str(tool_exc)})
                         oai_messages.append(
                             {

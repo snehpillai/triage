@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Dev / test artifacts
+tests/
+.git/
+.github/
+*.md
+!src/**/*.md
+
+# Local env and secrets
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Docker build artifacts
+docker/
+
+# Misc
+.DS_Store
+*.log

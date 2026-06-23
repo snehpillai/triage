@@ -6,6 +6,7 @@ Start with:
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_client import make_asgi_app
 
 from triage.api.routes.tickets import router as tickets_router
 from triage.config import settings
@@ -28,6 +29,9 @@ app.add_middleware(
 )
 
 app.include_router(tickets_router)
+
+# Expose Prometheus metrics at /metrics for scraping.
+app.mount("/metrics", make_asgi_app())
 
 
 @app.get("/health", tags=["meta"], summary="Health check")

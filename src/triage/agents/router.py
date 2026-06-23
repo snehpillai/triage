@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from triage.config import settings
 from triage.graph.state import TicketState
+from triage.observability.metrics import record_llm_call
 
 # Lightweight initialisation - no network call until messages.create() is invoked.
 # wrap_anthropic patches messages.create() so each call is traced as an LLM span in LangSmith.
@@ -68,6 +69,7 @@ def route(state: TicketState) -> dict[str, Any]:
     # tool_choice={"type": "tool", "name": "..."} guarantees a tool_use block.
     tool_block = next(b for b in response.content if b.type == "tool_use")
     output = RouterOutput.model_validate(tool_block.input)
+    record_llm_call(agent="router", model=settings.router_model, provider="anthropic")
 
     logger.info(
         "Router: ticket={id} intent={intent} confidence={conf:.2f}",

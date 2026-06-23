@@ -20,6 +20,7 @@ import json
 import os
 import signal
 import socket
+import time
 import traceback
 import uuid
 from datetime import UTC, datetime
@@ -35,6 +36,7 @@ from sqlalchemy.orm import Session
 from triage.config import settings
 from triage.db.models import EscalationRecord, Ticket, TicketStatus
 from triage.graph.builder import app as _graph
+from triage.observability.metrics import record_ticket_latency, record_ticket_outcome
 
 _GROUP = "triage-workers"
 _BLOCK_MS = 5_000  # wait up to 5 s for new messages per XREADGROUP call
@@ -46,7 +48,14 @@ class TicketConsumer:
     """Pulls messages from the Redis stream and runs the LangGraph pipeline."""
 
     def __init__(self) -> None:
-        self._redis = redis.from_url(settings.redis_url, decode_responses=True)
+        # socket_timeout must exceed _BLOCK_MS/1000 or the blocking XREADGROUP
+        # call raises "Timeout reading from socket" before Redis can respond.
+        self._redis = redis.from_url(
+            settings.redis_url,
+            decode_responses=True,
+            socket_timeout=_BLOCK_MS / 1000 + 5,
+            socket_connect_timeout=5,
+        )
         self._engine = create_engine(settings.database_url)
         self._stream = settings.redis_stream_name
         self._consumer = os.environ.get("WORKER_NAME") or socket.gethostname()
@@ -214,6 +223,7 @@ class TicketConsumer:
             self._safe_xack(msg_id)
             return
 
+        t0 = time.monotonic()
         try:
             with trace(
                 name="ticket_pipeline",
@@ -228,6 +238,11 @@ class TicketConsumer:
                         "escalated": state.get("escalate", False),
                     }
                 )
+            duration = time.monotonic() - t0
+            intent = state.get("intent") or "unknown"
+            status = "escalated" if state.get("escalate", False) else "resolved"
+            record_ticket_outcome(intent, status)
+            record_ticket_latency(intent, duration)
             self._persist_result(tid, state)
             self._safe_xack(msg_id)
             logger.info(
@@ -236,6 +251,9 @@ class TicketConsumer:
                 esc=state.get("escalate", False),
             )
         except Exception:
+            duration = time.monotonic() - t0
+            record_ticket_outcome("unknown", "failed")
+            record_ticket_latency("unknown", duration)
             logger.error(
                 "Unhandled exception for ticket={id}:\n{tb}",
                 id=ticket_id_str,
@@ -259,6 +277,43 @@ class TicketConsumer:
             session.commit()
         return True
 
+    def _build_debug_info(self, state: dict[str, Any]) -> str:
+        """Serialize pipeline debug data to JSON for the demo UI."""
+        context_docs = []
+        for doc in state.get("context_docs") or []:
+            try:
+                context_docs.append(
+                    {
+                        "source_file": doc.chunk.source_file,
+                        "score": round(doc.score, 4),
+                        "content": doc.chunk.content[:600],
+                    }
+                )
+            except Exception:
+                pass
+
+        tool_results: dict[str, Any] = {}
+        for name, result in (state.get("tool_results") or {}).items():
+            try:
+                tool_results[name] = (
+                    result.model_dump() if hasattr(result, "model_dump") else str(result)
+                )
+            except Exception:
+                tool_results[name] = "<unserializable>"
+
+        return json.dumps(
+            {
+                "confidence": state.get("confidence"),
+                "context_docs": context_docs,
+                "tool_results": tool_results,
+                "qc_score": state.get("qc_score"),
+                "qc_feedback": state.get("qc_feedback"),
+                "qc_passed": state.get("qc_passed"),
+                "retry_count": state.get("retry_count", 0),
+                "provider": state.get("provider"),
+            }
+        )
+
     def _persist_result(self, ticket_id: uuid.UUID, state: dict[str, Any]) -> None:
         """Write the completed graph state back to the Ticket row.
 
@@ -275,6 +330,7 @@ class TicketConsumer:
             ticket.response = state.get("final_response") or ""
             ticket.intent = state.get("intent")
             ticket.resolved_at = datetime.now(UTC)
+            ticket.debug_info = self._build_debug_info(state)
             session.commit()
 
     # ------------------------------------------------------------------

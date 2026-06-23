@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     api_key: str = ""  # set a real key in .env; empty string means auth always passes
     environment: str = "development"  # set to "production" to enforce X-API-Key checks
     redis_stream_name: str = "triage:tickets"
+    # When true, POST /tickets runs the pipeline inline and blocks until resolved.
+    # Set SYNC_MODE=true in deployed environments where no worker process runs.
+    sync_mode: bool = False
     # Override via CORS_ORIGINS='["https://demo.example.com"]' in .env
     cors_origins: list[str] = ["http://localhost:8501"]
 
