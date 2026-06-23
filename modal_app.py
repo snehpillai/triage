@@ -30,12 +30,12 @@ image = (
     modal.Image.debian_slim(python_version="3.13")
     .apt_install("libpq-dev")
     .pip_install_from_pyproject("pyproject.toml")
-    # Copy source so `triage` package is importable inside the image.
+    .env({"PYTHONPATH": "/root/src"})
+    .workdir("/root")
+    # add_local_* must come last - Modal mounts these at container start, not build time.
     .add_local_dir("src", remote_path="/root/src")
     .add_local_dir("scripts", remote_path="/root/scripts")
     .add_local_file("alembic.ini", remote_path="/root/alembic.ini")
-    .env({"PYTHONPATH": "/root/src"})
-    .workdir("/root")
 )
 
 # ---------------------------------------------------------------------------
