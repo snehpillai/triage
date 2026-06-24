@@ -2,10 +2,7 @@
 
 A multi-agent customer support automation system. Multi-agent routing, RAG-grounded responses, quality verification, graceful escalation, with full observability.
 
-[![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/downloads/)
-[![LangGraph](https://img.shields.io/badge/built%20with-LangGraph-purple.svg)](https://github.com/langchain-ai/langgraph)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Eval dataset](https://img.shields.io/badge/eval-500%20cases-orange.svg)](tests/eval/datasets/tickets_500.json)
+[![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/downloads/) [![LangGraph](https://img.shields.io/badge/built%20with-LangGraph-purple.svg)](https://github.com/langchain-ai/langgraph) [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE) [![Eval dataset](https://img.shields.io/badge/eval-500%20cases-orange.svg)](tests/eval/datasets/tickets_500.json)
 
 **[Live demo](https://triagedemo.streamlit.app)**
 
@@ -19,14 +16,14 @@ A multi-agent customer support automation system. Multi-agent routing, RAG-groun
 
 Evaluated against the first 50 tickets of a 500-case synthetic dataset. Full trajectory, root-cause analysis, and run-to-run variance notes: [`tests/eval/results/baseline_numbers.md`](tests/eval/results/baseline_numbers.md).
 
-| Metric | Value |
-|---|---|
-| Resolution accuracy | 68.8% across 50 evaluated cases |
-| Intent classification accuracy | 100% |
-| P95 latency | 57.5s |
-| Cost per resolved ticket | $0.056 |
-| Escalation accuracy | 85.7% |
-| QC rejection rate | 46% |
+| Metric                         | Value                           |
+| ------------------------------ | ------------------------------- |
+| Resolution accuracy            | 68.8% across 50 evaluated cases |
+| Intent classification accuracy | 100%                            |
+| P95 latency                    | 57.5s                           |
+| Cost per resolved ticket       | $0.056                          |
+| Escalation accuracy            | 85.7%                           |
+| QC rejection rate              | 46%                             |
 
 The 70% resolution target was not reliably crossed. The best single run was 68.8%; the average across 12 real-mode runs is approximately 57%. The 22-point swing between best (68.8%) and worst (46.2%) is driven by LLM temperature variance in the specialist: the same ticket produces a different response each run, which determines whether QC passes, which determines whether a retry fires. This is the real behavior of a prompt-based v1 pipeline and is reported here as-is, not averaged away.
 
@@ -41,7 +38,7 @@ Incoming tickets enter via a FastAPI ingress that immediately returns a `ticket_
 ### Stack
 
 | Layer | Technology |
-|---|---|
+| --- | --- |
 | Agent orchestration | LangGraph |
 | LLM | Anthropic API (Haiku for router/QC, Sonnet for specialists) |
 | Vector search | pgvector on Postgres |
@@ -70,8 +67,6 @@ Incoming tickets enter via a FastAPI ingress that immediately returns a `ticket_
 The full agent trace is accessible in the Streamlit demo after each ticket resolves. Expand the collapsibles to see the routing decision, retrieved policy chunks with similarity scores, tool call results, QC gate outcomes, and the final response.
 
 ![Routing and retrieval](imgs/collapsible_routing.png)
-
-![Retrieved policy chunks](imgs/collapsible_retrieval.png)
 
 ![Response sent to customer](imgs/response_resolved.png)
 
@@ -126,7 +121,7 @@ The Prometheus endpoint at `/metrics` on the worker process exposes six custom c
 ## Failure modes
 
 | Failure | System response |
-|---|---|
+| --- | --- |
 | Router confidence below 0.6 | Specialist is skipped; ticket escalates immediately with confidence score attached |
 | Router returns invalid intent (very ambiguous ticket) | `ValidationError` is caught; ticket escalates with reason "Router could not determine intent" |
 | QC Stage 1 hard rule violation (PII, length, forbidden phrase) | Draft rejected; retry count incremented; rejection reason prepended to specialist context |
