@@ -6,7 +6,7 @@ from langsmith.run_helpers import set_run_metadata
 from langsmith.utils import tracing_is_enabled
 from langsmith.wrappers import wrap_anthropic
 from loguru import logger
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from triage.config import settings
 from triage.graph.state import TicketState
@@ -26,7 +26,8 @@ You are a customer support ticket router. Classify the ticket into exactly one c
 - billing: charges, invoices, payment failures, subscription upgrades or downgrades
 - account: passwords, two-factor authentication, suspension, reactivation, data deletion
 
-Choose the customer's primary intent. When a ticket spans multiple categories, pick the most prominent one.\
+Always pick the closest matching category. Never return a value outside these four.
+If the ticket is vague or ambiguous, pick the most likely category and set confidence below 0.6.\
 """
 
 
@@ -68,7 +69,25 @@ def route(state: TicketState) -> dict[str, Any]:
 
     # tool_choice={"type": "tool", "name": "..."} guarantees a tool_use block.
     tool_block = next(b for b in response.content if b.type == "tool_use")
-    output = RouterOutput.model_validate(tool_block.input)
+    try:
+        output = RouterOutput.model_validate(tool_block.input)
+    except ValidationError:
+        # LLM returned a value outside the four valid categories (e.g. for very
+        # ambiguous tickets). Treat as unclassifiable with zero confidence so the
+        # confidence threshold forces escalation downstream.
+        logger.warning(
+            "Router: ticket={id} returned invalid intent={raw}, escalating",
+            id=ticket_id,
+            raw=tool_block.input.get("intent"),
+        )
+        return {
+            "intent": "account",
+            "confidence": 0.0,
+            "retry_count": 0,
+            "escalate": True,
+            "escalation_reason": "Router could not determine intent from ticket content.",
+            "messages": [HumanMessage(content=content)],
+        }
     record_llm_call(agent="router", model=settings.router_model, provider="anthropic")
 
     logger.info(
