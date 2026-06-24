@@ -332,8 +332,7 @@ with st.sidebar:
     metrics = _fetch_metrics()
 
     if not metrics:
-        st.warning("Worker metrics unavailable. Is the worker running?")
-        st.caption(f"Expected at: {METRICS_URL}/metrics")
+        st.caption("Metrics unavailable (worker not running in this deployment).")
     else:
         # Total tickets
         total_raw = metrics.get("tickets_total", [])
