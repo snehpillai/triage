@@ -149,12 +149,23 @@ st.set_page_config(
     layout="wide",
 )
 
-# Tighten font size so the full resolved trace fits in one screenshot.
+# Uniform small font inside every expander so the full trace fits in one screenshot.
 st.markdown(
-    "<style>"
-    "section[data-testid='stMain'] { font-size: 0.88rem; }"
-    ".stExpander p, .stExpander li { font-size: 0.85rem; }"
-    "</style>",
+    """<style>
+    [data-testid="stExpander"] p,
+    [data-testid="stExpander"] li,
+    [data-testid="stExpander"] span,
+    [data-testid="stExpander"] div,
+    [data-testid="stExpander"] blockquote,
+    [data-testid="stExpander"] code,
+    [data-testid="stExpander"] pre,
+    [data-testid="stExpander"] strong,
+    [data-testid="stExpander"] em,
+    [data-testid="stExpander"] [data-testid="stMarkdownContainer"] {
+        font-size: 0.78rem !important;
+        line-height: 1.4 !important;
+    }
+    </style>""",
     unsafe_allow_html=True,
 )
 
