@@ -149,6 +149,15 @@ st.set_page_config(
     layout="wide",
 )
 
+# Tighten font size so the full resolved trace fits in one screenshot.
+st.markdown(
+    "<style>"
+    "section[data-testid='stMain'] { font-size: 0.88rem; }"
+    ".stExpander p, .stExpander li { font-size: 0.85rem; }"
+    "</style>",
+    unsafe_allow_html=True,
+)
+
 st.title("Triage: Multi-Agent Customer Support")
 st.caption(
     "Submits tickets to the FastAPI pipeline, polls until resolved, "
@@ -179,13 +188,14 @@ submitted = st.button("Submit ticket", type="primary", disabled=not content.stri
 # ---------------------------------------------------------------------------
 
 if submitted and content.strip():
-    try:
-        ticket_id = _submit_ticket(content.strip())
-        st.session_state["ticket_id"] = ticket_id
-        st.session_state["result"] = None
-        st.session_state["timed_out"] = False
-    except Exception as exc:
-        st.error(f"Failed to submit ticket: {exc}")
+    with st.spinner("Pipeline running... this takes 10-15 seconds"):
+        try:
+            ticket_id = _submit_ticket(content.strip())
+            st.session_state["ticket_id"] = ticket_id
+            st.session_state["result"] = None
+            st.session_state["timed_out"] = False
+        except Exception as exc:
+            st.error(f"Failed to submit ticket: {exc}")
 
 # ---------------------------------------------------------------------------
 # Section B - Processing / result panel
