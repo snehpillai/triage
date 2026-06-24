@@ -158,6 +158,7 @@ def _run_pipeline_and_persist(ticket_id_str: str, content: str) -> None:
     """
     import time
 
+    from langsmith import trace
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
 
@@ -165,7 +166,19 @@ def _run_pipeline_and_persist(ticket_id_str: str, content: str) -> None:
 
     start = time.monotonic()
     try:
-        state = _graph.invoke({"ticket_id": ticket_id_str, "content": content})
+        with trace(
+            name="ticket_pipeline",
+            run_type="chain",
+            metadata={"ticket_id": ticket_id_str},
+            tags=["production"],
+        ) as run:
+            state = _graph.invoke({"ticket_id": ticket_id_str, "content": content})
+            run.add_outputs(
+                {
+                    "intent": state.get("intent"),
+                    "escalated": state.get("escalate", False),
+                }
+            )
     except Exception as exc:
         logger.error("Sync pipeline failed for ticket={id}: {e}", id=ticket_id_str, e=exc)
         engine = create_engine(settings.database_url)
