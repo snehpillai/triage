@@ -31,7 +31,7 @@ The 70% resolution target was not reliably crossed. The best single run was 68.8
 
 ## Architecture
 
-![System overview](docs/diagrams/Gemini_Generated_Image_698gjc698gjc698g.png)
+![System overview](docs/diagrams/new_system_architecture.jpg)
 
 Incoming tickets enter via a FastAPI ingress that immediately returns a `ticket_id` and enqueues the work to a Redis Streams queue. A worker process subscribes to that queue and drives each ticket through the LangGraph pipeline: Router classifies intent, a Specialist retrieves policy and calls live tools, the Quality Checker runs a two-stage gate, and the Escalator generates a structured handoff if confidence is too low or quality too poor. The full trace is recorded in LangSmith; custom counters are exposed on a Prometheus endpoint.
 
